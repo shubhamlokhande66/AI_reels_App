@@ -58,6 +58,9 @@ function MyCredits({ c }: { c: Extract<Credits, { enabled: true }> }) {
 }
 
 /** Plans and credits. Open to everyone (also before signing in); signed-in users can buy and see their credits. */
+/** Sent here for more credits (/pricing#topup): the page has come in by now, so the top-ups can be shown. */
+const scrollWhenAsked = (el: HTMLDivElement | null) => { if (el && location.hash === "#topup") el.scrollIntoView({ behavior: "smooth", block: "start" }); };
+
 export default function PricingPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["plans"], queryFn: api.plans, staleTime: 300_000 });
@@ -188,7 +191,8 @@ export default function PricingPage() {
       {/* your credits and top-ups */}
       <section aria-label="Credits" className={cn("grid gap-5", mine && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]")}>
         {mine && <MyCredits c={mine} />}
-        <Card as="section" aria-label="Top up" className="flex flex-col gap-4">
+        <div id="topup" ref={scrollWhenAsked} className="scroll-mt-24">
+        <Card as="section" aria-label="Top up" className="flex h-full flex-col gap-4">
           <SectionHeading title={text("pricing.topUpTitle")} sub={text("pricing.topUpSub")} />
           <div className="grid gap-3 sm:grid-cols-2">
             {p.topUps.map((tu) => {
@@ -209,6 +213,7 @@ export default function PricingPage() {
             })}
           </div>
         </Card>
+        </div>
       </section>
 
       {/* what a credit buys */}

@@ -158,6 +158,15 @@ export async function refundUndelivered(ref: string): Promise<number> {
   const e = await (await col("credit_ledger")).findOne({ ref, delta: { $lt: 0 }, refunded: { $ne: true } });
   return !e || e.delivered ? 0 : refund(ref);
 }
+/** An AI Reel's charge whose plan never came and whose work has ended (the app closed, the phone off, a step that failed on the
+ * phone): given back, at most once. 30 minutes: far past what the AI may take. Charges from before this rule are left alone. */
+const ABANDONED_AFTER = 30 * 60_000, ABANDONED_FROM = new Date("2026-11-06T00:00:00Z");
+export async function refundAbandoned(now = Date.now()): Promise<number> {
+  const left = await (await col("credit_ledger")).find({ ref: /^studio_ai:/, delta: { $lt: 0 }, refunded: { $ne: true }, delivered: { $ne: true }, at: { $gte: ABANDONED_FROM, $lt: new Date(now - ABANDONED_AFTER) } }).limit(200).toArray();
+  let back = 0;
+  for (const e of left) if (await refund(String(e.ref))) back++;
+  return back;
+}
 /** Give back what a job took (it failed or was cancelled); each charge is refunded at most once. */
 export async function refund(ref: string): Promise<number> {
   const entry = await (await col("credit_ledger")).findOneAndUpdate({ ref, delta: { $lt: 0 }, refunded: { $ne: true } }, { $set: { refunded: true } });

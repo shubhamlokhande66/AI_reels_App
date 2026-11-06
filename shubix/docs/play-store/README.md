@@ -28,6 +28,12 @@ Still blocked (`app.json` → `android.blockedPermissions`): READ_MEDIA_AUDIO, A
 RECORD_AUDIO, SYSTEM_ALERT_WINDOW. Songs come from the file picker; finished Reels are saved without extra permissions.
 Without the gallery permission the app falls back to the system picker (order may then need the tap-to-move fix).
 
+## Foreground service (declaration needed)
+
+A Reel goes on being made with the screen off or in another app (`ShubixWorkService.kt`): `mediaProcessing` on Android 15+, `dataSync` before. Play Console → App content → **Foreground service permissions**: asks what it does and a short video of it. Suggested text:
+
+> While a person's Reel is being made or exported they can leave the app. The service keeps that work running, shows a notification for as long as it runs, and ends when the Reel is done. It starts only after the person chooses clips or presses Export.
+
 ## Ads
 
 **Yes, the app contains ads**: AdMob banners on the Free plan (home and My account). Advertising ID: **used, for

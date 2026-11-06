@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { AppRegistry, Platform } from "react-native";
 import { askAction, tasks, tell, type TaskKind } from "@mobile/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
 import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
@@ -25,7 +25,19 @@ export type ExportChoice = { res?: "720" | "1080" | "4k"; fps?: 30 | 60; noWater
 export type ExportOptions = { res: Record<"720" | "1080" | "4k", { locked: boolean; off: boolean }>; fps60Locked: boolean; watermarkOff: boolean;
   size: string; fileName: string; myReels: boolean; myReelsNote: string; locked: { name: string; need: string }[] };
 
-let held = "";
+let held = "", clipRead: ((name: string, ok: boolean) => void) | null = null;
+/** told as each clip is read: its card shows it */
+export const onClipRead = (fn: typeof clipRead) => { clipRead = fn; };
+/** The person's work goes on while they are away (the screen off, another app): a notification says so, the screen stays on
+ * while they watch. Counted: it ends when the last job has ended. The JS task only keeps the app's timers running. */
+let working = 0, endTask: (() => void) | null = null;
+if (Platform.OS === "android") AppRegistry.registerHeadlessTask("ShubixWork", () => () => new Promise<void>((done) => { endTask = done; }));
+export const keepAwake = (on: boolean, title = "Shubix is working on your Reel") => {
+  working = Math.max(0, working + (on ? 1 : -1));
+  if (on ? working !== 1 : working !== 0) return;
+  try { ShubixVideo?.keepAwake?.(on, title); } catch { /* an older build: nothing */ }
+  if (!on) { endTask?.(); endTask = null; }
+};
 const files = ShubixVideo ? ShubixVideo.fileServer(API_URL) : null;
 
 /** whether this phone can make Reels with the studio (the app's own build, not Expo Go or the web) */
@@ -36,6 +48,7 @@ const native = files ? createNativeEngine({
   ask: async (q) => { const v = await askAction({ title: q.title, body: [q.text, q.bal == null ? "" : `You have ${q.bal} credits`].filter(Boolean).join(" · "), list: q.list, ok: q.ok, ...(q.no ? { cancel: q.no } : {}) }); return v === 0 ? true : v === 1 && q.no ? false : null; },
   stat: (text, err) => { if (!text) return tasks.clear("ai"); if (text.endsWith("…")) { tasks.start("ai", "ai", "Shubix at work", text.slice(0, -1)); return; } if (err) tasks.fail("ai", text); else tasks.done("ai", text); },
   spent: () => tasks.lock(),
+  clipDone: (name, ok) => clipRead?.(name, ok),
   readBytes: async (path, at, length) => { const h = new File(`file://${path}`).open(); try { h.offset = at; return h.readBytes(length); } finally { h.close(); } },
   tell: (text) => tell(text, "danger"),
   task: (state, id, title, detail, kind, p) => onTask({ event: "task", id, state, p: p ?? null, title, detail, kind: kind as TaskKind | undefined }),
@@ -157,6 +170,10 @@ export const engine = {
   /** Make new Reel: charged as a new Reel; Keep old Reel: the studio holds that Reel again */
   newReel: () => call<{ ok: boolean }>("newReel"),
   keptOldReel: () => call<{ ok: boolean }>("keptOldReel"),
+  /** the good footage in the clips read (whole seconds) and the Reel's length */
+  footage: () => call<{ have: number; need: number }>("footage"),
+  /** Shubix AI's price for this Reel and the balance */
+  aiPrice: () => call<{ on: boolean; cost: number; balance: number | null }>("aiPrice"),
   /** whether this person's plan has Shubix AI */
   aiOn: () => call<{ on: boolean }>("aiState").then((r) => r.on),
   /** a new Reel: nothing of the Reel before it stays (song, clips, edit, AI, cards) */

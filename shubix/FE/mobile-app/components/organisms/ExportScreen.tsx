@@ -17,7 +17,7 @@ import { canUseSharedAndroidRenderer, cancelExport, exportReel, exportReelWithSh
 import { FlowAnalyse } from "./CreateFlow";
 import { notifyAway } from "../../lib/notify";
 import { useThumb } from "../../lib/thumbs";
-import { engine, type ExportChoice, type ExportOptions } from "../../lib/engine";
+import { engine, keepAwake, type ExportChoice, type ExportOptions } from "../../lib/engine";
 
 // the website's Exporting list: each line done once the Reel is that far
 const STEPS: [IconName, string, number][] = [["search", "Preparing clips", 0.02], ["sparkle", "Applying effects", 0.3], ["image", "Rendering video", 0.85], ["music", "Finalizing audio", 1]];
@@ -62,7 +62,10 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
       if (canUseSharedAndroidRenderer(reel)) return exportReelWithSharedRenderer(reel, (p) => live && setPct(p));
       return exportReel(reel, (p) => live && setPct(p));
     };
-    make().then(async (r) => {
+    keepAwake(true, words("Shubix is exporting your Reel"));
+    const run = make();
+    void run.catch(() => undefined).finally(() => keepAwake(false));
+    run.then(async (r) => {
       if (!live) return;
       setPct(1); setDone(r); setStep("done"); if (adPlan && full) void showInterstitial(full); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
       if (reel.studio && allowed?.myReels && choice.myReels) void engine.saveToMyReels(r.uri, allowed.fileName).then(() => tell(words("Saved to My Reels"), "success")).catch((e) => tell(errorMessage(e), "danger"));

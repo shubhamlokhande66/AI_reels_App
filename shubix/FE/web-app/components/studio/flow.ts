@@ -2,8 +2,9 @@
  *
  * Computers: one page. The header (back, "Music Reel", the four steps Music · Clips · AI Edit · Preview & Export), then
  *   1 Choose Music, 2 Add Your Clips, 3 AI Edit in a column, and the Reel Preview with Generate Reel beside them.
- * Phones: one screen at a time: the intro, choose music, adjust music (part, length, beats), add clips, analysing, then
+ * Phones: one screen at a time: the intro (the first time), choose music, add clips (Adjust music from there), then
  *   the finished Reel ("Your Reel is ready", the editor's tools in a row, Export).
+ * The song and the clips are read behind the page (each clip's card says how it goes). Generate opens the one popup.
  *
  * The engine makes the edit by itself as soon as there is a song and clips; the flow keeps that edit behind the
  * Analysing screen until Generate (computers) or Next (phones) is pressed, then hands the page to the editor views
@@ -23,7 +24,7 @@ const KINDS: Record<Kind, { title: string; sub: string; intro: string; checks: s
   photo: { title: "Photo Reel", sub: "Your photos, moving to the music, cut on the beat.", intro: "Create a Photo Reel", checks: ["Pick a song", "Add your photos", "Shubix moves them on the beat", "Preview, make changes and export"], icon: "image" },
   copy: { title: "Copy a Reel", sub: "Match a Reel you like: its cuts, texts and look on your clips.", intro: "Copy a Reel", checks: ["Pick the Reel to copy (its song comes with it)", "Add your clips", "Shubix copies its cuts and look", "Preview, make changes and export"], icon: "copy" },
 };
-const ORDER: Record<"music" | "talk", Step[]> = { music: ["intro", "choose", "adjust", "clips", "analyse"], talk: ["intro", "clips", "analyse"] };
+const ORDER: Record<"music" | "talk", Step[]> = { music: ["intro", "choose", "clips", "analyse"], talk: ["intro", "clips", "analyse"] };
 // which engine task moves which line of the AI checklist (data-t in markup.ts)
 const LINE_OF: Record<string, string> = { clips: "clips", beats: "beats", ai: "ai" };
 // the breadcrumb's name for each step (phones walk them one by one; computers see Music, Clips and Shubix Edit at once)
@@ -50,6 +51,8 @@ export function initFlow(root: HTMLElement): () => void {
   let refFile: File | null = null, refName = "", autoSong = false;
   const lines = new Map<string, "now" | "ok">();
   const working = new Set<string>(); // the WAIT tasks running right now
+  let wantGen = false, aiLater = false; // Generate pressed: the popup shows what is left, and it goes on by itself
+  let lengthTouched = false;
   const phone = () => window.matchMedia("(max-width: 1023px)").matches;
   // how many screens of this flow the browser has before this one (0: the page as it was opened)
   let depth = (history.state as { fflow?: Mark } | null)?.fflow?.n ?? 0;   // (a reload keeps its place in the walk)
@@ -76,7 +79,7 @@ export function initFlow(root: HTMLElement): () => void {
   // Shubix's line under the clips ends in "…" while it works (scoring the clips, the pace, planning the shots, the mixes)
   // Shubix AI still working on the Reel (the studio's own state; its status line can end in "…" when it is only cut short)
   const aiWorking = () => { const w = (root as unknown as { __studio?: { work?: { ai?: boolean; dir?: boolean; pace?: boolean; aiWait?: boolean } } }).__studio?.work; return !!w && (!!w.ai || !!w.dir || !!w.pace || !!w.aiWait); };   // (aiWait: agreed to, its plan not here yet, also between its steps)
-  type Live = { upsell?: () => Promise<string>; changeGate?: () => Promise<string>; keepOldReel?: () => void; saveNow?: () => Promise<string>; askNotDone?: () => Promise<boolean>; cancelled?: () => { song: boolean; clips: boolean }; guard?: (on: boolean) => void };
+  type Live = { aiPrice?: () => { on: boolean; cost: number; balance: number | null; low: boolean }; askLow?: () => Promise<unknown>; askShort?: () => Promise<"go" | "stop" | "again">; upsell?: () => Promise<string>; changeGate?: () => Promise<string>; keepOldReel?: () => void; saveNow?: () => Promise<string>; askNotDone?: () => Promise<boolean>; cancelled?: () => { song: boolean; clips: boolean }; guard?: (on: boolean) => void };
   const live = () => (root as unknown as { __studio?: Live }).__studio;
   const stopped = () => live()?.cancelled?.() ?? { song: false, clips: false };
   let aiRunNo = 0;   // the wait for the Reel that the popup's Cancel ended
@@ -234,7 +237,9 @@ export function initFlow(root: HTMLElement): () => void {
       if (k === "photo") $("fintroic").innerHTML = $("photokind").querySelector("svg")!.outerHTML;
       if (k === "copy") $("fintroic").innerHTML = $("copycard").querySelector("svg")!.outerHTML;
       setText($("fgot"), k === "copy" ? "Pick the Reel to copy" : "Let's Start");
-      if (!order().includes(step)) step = "intro";
+      if (!order().includes(step) && step !== "adjust") step = "intro";
+      // the intro the first time only (Copy a Reel: its first button picks the Reel)
+      if (step === "intro" && k !== "copy") { try { if (localStorage.getItem("create-intro-seen")) step = order()[1]; else localStorage.setItem("create-intro-seen", "1"); } catch { /* private mode: the intro */ } }
       defaults(k);
       // each kind at its own address (/create/music, /create/talking, /create/photo); the same page, no reload
       const slug = { music: "music", talk: "talking", photo: "photo", copy: "copy" }[k];
@@ -288,23 +293,31 @@ export function initFlow(root: HTMLElement): () => void {
     const busy = (ready || (clipsOk() && songComing)) && !stop && (working.size > 0 || shubixBusy() || !made());
     // nothing goes forward while the song or the clips are being worked on, or without both. After a Cancel it only offers to continue
     const paused = (stopped().song || songOk()) && (stopped().clips || clipsOk()) && (stopped().song || stopped().clips);
-    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", (!clipsOk() && !stopped().clips) || busy || !!stop || working.size > 0);
     // every button forward says what it waits for while it is off (phones: Next on each screen; computers: Generate)
     const reading = !stopped().clips && (working.has("clips") || (!!$("qinfo").textContent && !clipsOk()));
+    // on as soon as the clips are chosen: what is still being read is shown in the popup after the press
+    const goes = (clipsOk() || reading) && (!!songOk() || songComing);
+    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", (!clipsOk() && !stopped().clips && !reading) || !!stop || wantGen);
     const missing = stopped().clips ? "" : !clipsOk() ? (reading ? "Reading your clips…" : has("photomode") ? "Add your photos to continue" : "Add your clips to continue")
       : !songOk() && !songComing ? "Choose a song first" : "";
-    setText($("fclipsnt"), stop || (busy ? "Next" : missing || "Next"));
+    setText($("fclipsnt"), stop || (goes ? "Make Reel" : missing || "Make Reel"));
     // Music (phones): Next only with a song ready (or "use my clips' own sound"), a spinner while it is read
     const songBusy = working.has("song") || working.has("refsong");   // (the beat check is waited for at the clips)
     for (const [b, t] of [["fchnext", "fchnt"], ["fadjnext", "fadjnt"]] as const) {
-      setFlag($<HTMLButtonElement>(b), "disabled", (!songOk() && !stopped().song) || songBusy);
-      setAttr($(b), "aria-busy", String(songBusy));
-      setText($(t), songBusy ? "Reading your song…" : !songOk() && !stopped().song ? "Choose a song to continue" : "Next");
+      setFlag($<HTMLButtonElement>(b), "disabled", !songOk() && !stopped().song && !songBusy);
+      setText($(t), !songOk() && !stopped().song && !songBusy ? "Choose a song to continue" : b === "fadjnext" ? "Done" : "Next");
     }
-    setFlag($<HTMLButtonElement>("fgen"), "disabled", (!ready && !paused) || busy || working.size > 0);
-    setAttr($("fclipsnext"), "aria-busy", String(busy));
-    setAttr($("fgen"), "aria-busy", String(busy));
-    setText($("fgent"), paused ? "Continue analysis" : busy ? "Making your Reel…" : ready ? "Generate Reel" : stopped().song ? missing || "Generate Reel" : (!songOk() && !songComing && (kind !== "copy" || has("pickown")) ? "Choose a song first" : missing || "Generate Reel"));
+    setFlag($("fadjust"), "hidden", has("talkmode") || (!songOk() && !songBusy));
+    // Shubix AI's price and the balance, on the screen before Generate (pressing it is the answer)
+    const price = live()?.aiPrice?.();
+    const priced = !price?.on ? "" : !price.cost ? "Shubix AI: included in your plan" : price.balance === null ? `Shubix AI: ${price.cost} credits` : `Shubix AI: ${price.cost} credits · You have ${price.balance}`;
+    for (const id of ["fcredit", "fcredit2"]) { setText($(id), priced); setFlag($(id), "hidden", !priced || !goes); }
+    const left = !price?.on || !price.cost || price.low ? "" : price.balance === null ? `Shubix AI: ${price.cost} credits` : `Shubix AI: ${price.cost} credits · ${Math.max(0, price.balance - price.cost)} left after`;
+    if ((root.dataset.fcredit ?? "") !== left) root.dataset.fcredit = left;
+    setFlag($<HTMLButtonElement>("fgen"), "disabled", (!ready && !paused && !goes) || wantGen);
+    setAttr($("fclipsnext"), "aria-busy", String(wantGen));
+    setAttr($("fgen"), "aria-busy", String(wantGen));
+    setText($("fgent"), paused ? "Continue analysis" : wantGen ? "Making your Reel…" : ready || goes ? "Generate Reel" : stopped().song ? missing || "Generate Reel" : (!songOk() && !songComing && (kind !== "copy" || has("pickown")) ? "Choose a song first" : missing || "Generate Reel"));
     const aiDone = aiGo && made() && !aiWorking();
     setText($("freadyt"), aiDone ? "Your Reel is ready!" : aiGo ? "Shubix is editing your Reel…" : "Ready to create your Reel!");
     setText($("freadys"), aiDone ? "Opening your Reel…" : aiGo ? "Every clip, every beat: it takes a moment." : ready ? "Press Generate Reel to start Shubix." : copy && !refName && !songOk() ? "Pick the Reel to copy, then add your clips."
@@ -314,6 +327,14 @@ export function initFlow(root: HTMLElement): () => void {
     paintAi();
     // the phones' analysing screen: the Reel opens once it is made
     if (step === "analyse" && made() && !aiWorking()) { revealed = true; mark(false); setTimeout(apply, 350); }   // Back from the Reel: the clips
+    // Generate was pressed while the song or clips were being read: on by itself when they are done; a Cancel ends the wait
+    if (wantGen) {
+      if (stopped().song || stopped().clips || !!stop || (!reading && !songComing && !goes)) wantGen = false;
+      else if (ready && !busy && working.size === 0 && !aiLater) { aiLater = true; setTimeout(() => { aiLater = false; wantGen = false; const g = $<HTMLButtonElement>("fgen"); g.disabled = false; g.click(); }, 0); }
+    }
+    // no popup until Generate: the work goes on behind the page
+    const quiet = !revealed && !aiGo && !wantGen && !inEngine ? "1" : "";
+    if ((root.dataset.fquiet ?? "") !== quiet) { root.dataset.fquiet = quiet; root.dispatchEvent(new Event("studio-quiet")); }
   };
 
   const go = (s: Step, push = true) => {
@@ -327,9 +348,11 @@ export function initFlow(root: HTMLElement): () => void {
   const next = () => {
     const o = order(), i = o.indexOf(step);
     if ((step === "choose" || step === "adjust") && stopped().song) { void live()?.askNotDone?.(); return; }
-    if ((step === "choose" || step === "adjust") && !songOk()) return;   // (its Next is off: a click that slipped through)
+    const songWay = working.has("song") || working.has("refsong");
+    if ((step === "choose" || step === "adjust") && !songOk() && !songWay) return;   // (its Next is off: a click that slipped through)
     if ((step === "choose" || step === "adjust") && !phone()) return toClips();   // computers: all on one page
-    if (step === "clips" && !songOk()) { if (kind === "copy") root.classList.add("pickown"); return go("choose"); } // no song yet (Copy a Reel: its Reel had none)
+    if (step === "adjust") return go("clips");
+    if (step === "clips" && !songOk() && !songWay) { if (kind === "copy") root.classList.add("pickown"); return go("choose"); } // no song yet (Copy a Reel: its Reel had none)
     if (step === "clips") { $<HTMLButtonElement>("fgen").disabled = false; $("fgen").click(); return; }   // as Generate: Shubix AI's question first
     if (i >= 0 && i < o.length - 1) go(o[i + 1]);
   };
@@ -355,10 +378,10 @@ export function initFlow(root: HTMLElement): () => void {
     const nextBtn = t.closest<HTMLElement>("[data-fnext]");
     if (nextBtn && !phone() && nextBtn.closest("#s1")) {   // computers: Music's Next goes on to Clips, where it is on this page
       e.preventDefault();
-      if (stopped().song) void live()?.askNotDone?.(); else if (songOk()) toClips();
+      if (stopped().song) void live()?.askNotDone?.(); else if (songOk() || working.has("song") || working.has("refsong")) toClips();
       return;
     }
-    if (nextBtn && !phone() && nextBtn.closest("#s2")) { e.preventDefault(); if (!songOk() && !stopped().song) openSection("s1"); else { $<HTMLButtonElement>("fgen").disabled = false; $("fgen").click(); } return; }
+    if (nextBtn && !phone() && nextBtn.closest("#s2")) { e.preventDefault(); if (!songOk() && !stopped().song && !working.has("song") && !working.has("refsong")) openSection("s1"); else { $<HTMLButtonElement>("fgen").disabled = false; $("fgen").click(); } return; }
     if (nextBtn) { e.preventDefault(); next(); return; }
     if (t.closest("#frefpick")) { pickRef(); return; }
     if (t.closest("#frefsong")) { refSong(); return; }
@@ -382,11 +405,21 @@ export function initFlow(root: HTMLElement): () => void {
     const fd = t.closest<HTMLElement>("[data-fd]");
     if (fd) { done10(fd.dataset.fd!); return; }
     if (t.closest("#fskip")) { go(order()[1]); return; }
+    if (t.closest("#fadjust")) { go("adjust"); return; }
+    if (t.closest("#slen") && e.isTrusted) lengthTouched = true;
     if (t.closest("#fgen")) {
+      // too few credits: said at once, before any waiting (Top up, or a free edit)
+      if (live()?.aiPrice?.().low) { void live()!.askLow!().then(() => { if (live()?.aiPrice?.().low) return; const g = $<HTMLButtonElement>("fgen"); g.disabled = false; g.click(); }); return; }   // (Free edit goes on; Top up and closing it do not)
+      // still being read: the one popup shows it now, and this goes on by itself when it is done
+      if (!stopped().song && !stopped().clips && (working.size > 0 || shubixBusy() || !made())) { wantGen = true; apply(); return; }
       // Free: first, once per Reel, why Shubix AI is worth it (Upgrade, Create basic Reel, or ✕ to stay here)
       const st = live(), run = ++aiRunNo;
       void (async () => {
         if (await st?.askNotDone?.()) return;   // after a Cancel: Proceed reads it again, then Next
+        // what the reading found, before Shubix AI and before any credits
+        const enough = (await st?.askShort?.()) ?? "go";
+        if (enough === "stop") { apply(); return; }
+        if (enough === "again") { wantGen = true; apply(); return; }
         const change = st?.changeGate ? await st.changeGate() : "go";   // changed since the Reel was made: a new Reel, or the old one
         if (change === "stay") return;
         if (change === "old") return st?.keepOldReel?.();
@@ -501,6 +534,8 @@ export function initFlow(root: HTMLElement): () => void {
     const d = (e as CustomEvent<TaskEvent>).detail, line = LINE_OF[d.id];
     // Copy a Reel whose Reel has no sound we can read: the Music card opens, to choose a song
     if (d.id === "song" && d.state === "fail" && kind === "copy") root.classList.add("pickown");
+    // a song on its way: the clips can be added now
+    if (d.id === "song" && d.state === "start") { $("s2").classList.remove("locked"); if (step === "choose" && phone()) go("clips"); }
     // Shubix is thinking (planning, re-planning): the preview shows a loader, not the first version made without it
     if (d.id === "ai") setClass(root, "aithink", d.state === "start" || d.state === "progress");
     if (WAIT.has(d.id)) {
@@ -544,7 +579,11 @@ export function initFlow(root: HTMLElement): () => void {
   const mo = new MutationObserver(() => {
     toolMark();
     const s = done("s1");
-    if (s && !wasSong && phone() && root.dataset.fstep === "choose") { wasSong = s; go("adjust"); return; }
+    // the song ready: until the person chooses, a Reel of 30 s on its best part (a short song whole)
+    if (s && !wasSong && !lengthTouched && (kind === "music" || kind === "photo")) {
+      const [m, sc] = ($("mdur").textContent ?? "").split(":").map(Number);
+      if ((m || 0) * 60 + (sc || 0) > 45) root.querySelector<HTMLButtonElement>('#slen [data-l="30"]')?.click();
+    }
     wasSong = s;
     apply();
   });

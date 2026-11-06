@@ -284,3 +284,80 @@ describe("what the old page did, on the phone's own engine", () => {
     } finally { vi.useRealTimers(); }
   });
 });
+
+describe("clips read behind the screen", () => {
+  it("a clip that cannot be read is named, and the others go on", async () => {
+    const server = fileServer(clickTrack(10)), told: [string, boolean][] = [];
+    const fetcher = async (to: string, init?: { method?: string; body?: unknown }) => {
+      const u = new URL(to);
+      if (u.pathname === "/probe" && u.searchParams.get("p") === "/b.mp4") return { ok: false, status: 422, text: async () => "no", json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) };
+      return server.fetcher(to, init);
+    };
+    const e = createNativeEngine({ base: "http://phone", key: "k", fetch: fetcher as never, clipDone: (name: string, ok: boolean) => told.push([name, ok]) } as never);
+    await e.call("song", { path: "/s.mp3", name: "s.mp3" });
+    const r = await e.call("clips", { paths: clips }) as { clips: number; names: string[]; failed: string[] };
+    expect(r.failed).toEqual(["b.mp4"]);
+    expect(r.names).toEqual(["a.mp4", "c.mp4"]);
+    expect(told).toEqual([["a.mp4", true], ["b.mp4", false], ["c.mp4", true]]);
+    expect((await e.call("ready") as { work: { shots: number } }).work.shots).toBeGreaterThan(0);
+  });
+  it("no clip readable at all says so", async () => {
+    const server = fileServer(clickTrack(10));
+    const fetcher = async (to: string, init?: { method?: string; body?: unknown }) => new URL(to).pathname === "/probe" ? { ok: false, status: 422, text: async () => "no", json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) } : server.fetcher(to, init);
+    const e = createNativeEngine({ base: "http://phone", key: "k", fetch: fetcher as never } as never);
+    await e.call("song", { path: "/s.mp3", name: "s.mp3" });
+    await expect(e.call("clips", { paths: clips })).rejects.toThrow(/cannot be read/);
+  });
+});
+
+describe("Shubix AI's price before Make Reel", () => {
+  const ok = (body: unknown) => ({ ok: true, status: 200, text: async () => String(body), json: async () => body, arrayBuffer: async () => body as ArrayBuffer });
+  const priced = (balance: number) => {
+    const s = fileServer(clickTrack(10)), asked: string[] = [];
+    const fetcher = async (to: string, init?: { method?: string; body?: unknown }) => {
+      const p = new URL(to).pathname;
+      if (p === "/api/studio/rank-shots" && (init?.method ?? "GET") === "GET") return ok({ available: true, planAi: true, costs: { reel: 10 }, balance });
+      if (p === "/api/credits") return ok({ enabled: true, plan: "editor" });
+      if (p === "/api/plan-locks") return ok({});
+      if (p.startsWith("/api/")) return { ok: false, status: 503, text: async () => "no", json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) };
+      return s.fetcher(to, init);
+    };
+    return { asked, e: createNativeEngine({ base: "http://phone", key: "k", fetch: fetcher as never, ask: async (q: { title: string }) => { asked.push(q.title); return true; } } as never) };
+  };
+  it("gives the price and the balance", async () => {
+    expect(await priced(240).e.call("aiPrice")).toEqual({ on: true, cost: 10, balance: 240 });
+  });
+  it("asks nothing again after Make Reel, with credits or without", async () => {
+    for (const balance of [240, 3]) {
+      const { e, asked } = priced(balance);
+      await e.call("song", { path: "/s.mp3", name: "s.mp3" });
+      await e.call("clips", { paths: clips });
+      await e.call("aiPrice");
+      expect((await e.call("ai") as { went: boolean }).went).toBe(true);
+      expect(asked).toEqual([]);
+    }
+  }, 30_000);
+});
+
+describe("the clips before Shubix AI", () => {
+  const counted = () => { const s = fileServer(clickTrack(30)), read: string[] = []; const fetcher = async (to: string, init?: { method?: string; body?: unknown }) => { const u = new URL(to); if (u.pathname === "/scan") read.push(u.searchParams.get("p")!); return s.fetcher(to, init); }; return { read, e: createNativeEngine({ base: "http://phone", key: "k", fetch: fetcher as never } as never) }; };
+  it("reads only a new clip, also after one was taken out or moved", async () => {
+    const { e, read } = counted();
+    await e.call("song", { path: "/s.mp3", name: "s.mp3" });
+    await e.call("clips", { paths: clips });
+    expect(read).toEqual(["/a.mp4", "/b.mp4", "/c.mp4"]);
+    expect((await e.call("clips", { paths: [clips[2], clips[0]] }) as { names: string[] }).names).toEqual(["c.mp4", "a.mp4"]);
+    expect(read).toHaveLength(3);
+    const more = await e.call("clips", { paths: [clips[2], clips[0], clips[1], { path: "/d.mp4", name: "d.mp4" }] }) as { names: string[] };
+    expect(more.names).toEqual(["c.mp4", "a.mp4", "b.mp4", "d.mp4"]);
+    expect(read).toEqual(["/a.mp4", "/b.mp4", "/c.mp4", "/d.mp4"]);
+  });
+  it("says how much good video there is for the Reel's length", async () => {
+    const { e } = await reel(30);
+    const f = await e.call("footage") as { have: number; need: number };
+    expect(f.need).toBeCloseTo(30, 0);
+    expect(Number.isInteger(f.have)).toBe(true);
+    expect(f.have).toBeGreaterThan(5);
+    expect(f.have).toBeLessThanOrEqual(24);   // three clips of 8 s
+  });
+});
