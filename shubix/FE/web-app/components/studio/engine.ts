@@ -1997,9 +1997,10 @@ function aiGate(again = false){
       aiStat('Free edit · Shubix AI needs ' + creditWord(cost) + ' (you have ' + creditWord(bal) + ')');
       if(lowAsked !== id){ lowAsked = id;
         if(IN_APP) await askCredits({ title: 'Not enough credits for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit.', bal, ok: 'OK' });
-        else { const go = await askCredits({ title: 'Not enough credits', text: 'Shubix AI needs ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '.', bal, ok: 'Top up', no: 'Free edit' });
-          if(go === true) location.assign('/pricing');
-          // Top up, or the popup closed: nothing is made; Generate asks again
+        else { const paid = planNow !== 'free';   // a plan: more credits for it; no plan: the plans
+          const go = await askCredits({ title: 'Not enough credits', text: 'Shubix AI needs ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '.', bal, ok: paid ? 'Top up' : 'See plans', no: 'Free edit' });
+          if(go === true) location.assign(paid ? '/pricing#topup' : '/pricing?feature=ai');
+          // Top up, See plans or the popup closed: nothing is made; Generate asks again
           if(go !== false){ lowAsked = ''; gateNo = ''; } } }
       return false; }
     // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
