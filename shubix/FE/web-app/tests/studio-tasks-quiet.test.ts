@@ -26,6 +26,6 @@ describe("the work popup", () => {
     tasks.start("ai", "ai", "Shubix at work", "");
     const why = host.querySelector<HTMLElement>("[data-why]")!;
     expect(why.hidden).toBe(false);
-    expect(why.textContent).toContain("Keep Shubix open");
+    expect(why.textContent).toContain("Keep this tab open");
   });
 });

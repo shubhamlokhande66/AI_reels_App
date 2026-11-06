@@ -12,6 +12,7 @@ import type { ProjectClip } from "@mobile/validations";
 import { engine, engineOn, keepAwake, onClipRead, shotsOf, type SongAnalysis } from "../../lib/engine";
 import { errorMessage } from "@mobile/api-client";
 import { forgetKeptFiles, keepPickedAssets, keepPickedFile, removeProject, saveProject, takeNewReelSeed } from "../../lib/projects";
+import { notifyAway } from "../../lib/notify";
 import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
 import { AskShubix, styleFromWords } from "../../components/organisms/AskShubix";
 import { pickInOrder } from "../../components/organisms/Gallery";
@@ -37,7 +38,10 @@ function CreateFlowScreen() {
   const [clipState, setClipState] = useState<Record<string, ClipState>>({});
   // the song and the clips are read one after another behind the screen (one heavy job at a time on a phone)
   const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const later = <T,>(job: () => Promise<T>) => { const run = queue.current.then(job, job); queue.current = run.catch(() => undefined); return run; };
+  const later = <T,>(job: () => Promise<T>) => {
+    keepAwake(true, words("Shubix is reading your song and clips"));   // also with the screen off, or in another app
+    const run = queue.current.then(job, job); queue.current = run.catch(() => undefined).finally(() => keepAwake(false)); return run;
+  };
   // what a job finishing behind the screen has changed, for Make Reel, which waited for it
   const now = useRef({ music, start, length }); now.current = { music, start, length };
   const lengthChosen = useRef(false), onScreen = useRef(true), DRAFT = `create-draft-${kind}`;
@@ -170,7 +174,7 @@ function CreateFlowScreen() {
   // draft saved, then the editor with the Reel. Without the engine (Expo Go) the clips play in turn.
   async function make() {
     // the one popup from here on, and the screen stays on
-    tasks.quiet(false); keepAwake(true);
+    tasks.quiet(false); keepAwake(true, words("Shubix is making your Reel"));
     try { await makeReel(); } finally { keepAwake(false); if (onScreen.current) tasks.quiet(true); }
   }
   async function makeReel() {
@@ -222,6 +226,7 @@ function CreateFlowScreen() {
       madeReel.current = { id, sig: `${keyOf(media)};${song?.uri ?? ""};${at};${long}`, media, song, start: at, length: long, kept: kept.current };
       void AsyncStorage.removeItem(DRAFT);
       await queryClient.invalidateQueries({ queryKey: ["drafts"] }); making.current = false; tasks.clear("flow"); tasks.unlock();
+      notifyAway(words("Your Reel is ready"), words("Open Shubix to see it"), "/");
       setStep("clips"); router.push({ pathname: "/editor", params: { id } }); // back from the editor: the clips again
     } catch (e) { const gone = !making.current; making.current = false; tasks.clear("flow"); tasks.unlock(); if (!gone) tell(errorMessage(e), "danger"); setStep("clips"); }
   }

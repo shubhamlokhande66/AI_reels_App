@@ -118,7 +118,7 @@ export function TaskHost({ cancel, cancelReel, cantCancel, hide, words = (s) => 
   const on = shown.length > 0;
   useEffect(() => { setLate(false); if (!on) { setHidden([]); return; } const t = setTimeout(() => setLate(true), 30_000); return () => clearTimeout(t); }, [on]);
   // while the AI works: why to stay, one short line after another
-  const notes = lock || shown.some((t) => t.kind === "ai" && t.state === "run") ? [words("Keep Shubix open until this is done."), words("Closing now may lose this Reel's credits."), ...(g && lock ? [cantCancel] : [])] : [];
+  const notes = lock || shown.some((t) => t.kind === "ai" && t.state === "run") ? [words("You can switch apps or turn the screen off. Don't close Shubix."), words("Closing it fully now may lose this Reel's credits."), ...(g && lock ? [cantCancel] : [])] : [];
   const [note, setNote] = useState(0), many = notes.length > 1;
   useEffect(() => { if (!many) return; const id = setInterval(() => setNote((n) => n + 1), 3500); return () => clearInterval(id); }, [many]);
   return (

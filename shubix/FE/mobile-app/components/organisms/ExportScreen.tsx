@@ -62,7 +62,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
       if (canUseSharedAndroidRenderer(reel)) return exportReelWithSharedRenderer(reel, (p) => live && setPct(p));
       return exportReel(reel, (p) => live && setPct(p));
     };
-    keepAwake(true);
+    keepAwake(true, words("Shubix is exporting your Reel"));
     const run = make();
     void run.catch(() => undefined).finally(() => keepAwake(false));
     run.then(async (r) => {

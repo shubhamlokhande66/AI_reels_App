@@ -126,9 +126,16 @@ class ShubixVideoModule : Module() {
       }
     }
     AsyncFunction("cancel") { main.post { cancelActiveExport() } }
-    // the screen stays on while the phone works for the person (Shubix AI, the export)
-    Function("keepAwake") { on: Boolean ->
+    // the person's work goes on: the screen stays on while they watch; away from the app, a foreground service keeps the
+    // app alive and a JS task keeps its timers running (React Native stops them when the app is not on screen)
+    Function("keepAwake") { on: Boolean, title: String ->
       appContext.currentActivity?.let { a -> a.runOnUiThread { if (on) a.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else a.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } }
+      val c = appContext.reactContext
+      if (c != null) { if (on) ShubixWorkService.start(c, title) else ShubixWorkService.stop(c) }
+      if (on) main.post {
+        val rc = c as? com.facebook.react.bridge.ReactContext ?: return@post
+        runCatching { com.facebook.react.jstasks.HeadlessJsTaskContext.getInstance(rc).startTask(com.facebook.react.jstasks.HeadlessJsTaskConfig("ShubixWork", com.facebook.react.bridge.Arguments.createMap(), 0L, true)) }
+      }
       Unit
     }
     // a part of a clip played backwards, as its own file; the same part is made once (ReverseCopy.kt)

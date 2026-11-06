@@ -5,7 +5,7 @@ type Engine = {
   exportReel(spec: string): Promise<{ uri: string; size: number; duration: number }>;
   reverseCopy(uri: string, start: number, end: number): Promise<string>;
   cancel(): Promise<void>;
-  keepAwake?(on: boolean): void;
+  keepAwake?(on: boolean, title: string): void;
   /** the tiny web server on the phone (127.0.0.1): it serves the engine page from the APK, reads the app's files for it,
    * takes the Reel back and passes its calls on to `api` */
   fileServer(api: string): { port: number; key: string };

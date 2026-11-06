@@ -1,8 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- a Reel goes on being made with the screen off or in another app (ShubixWorkService.kt) -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
   <!-- Android 11 and later: without this the app cannot see the phone's text-to-speech (SystemVoice.kt) -->
   <queries>
     <intent>
       <action android:name="android.intent.action.TTS_SERVICE" />
     </intent>
   </queries>
+  <application>
+    <service android:name="expo.modules.shubixvideo.ShubixWorkService" android:exported="false" android:foregroundServiceType="mediaProcessing|dataSync" />
+  </application>
 </manifest>

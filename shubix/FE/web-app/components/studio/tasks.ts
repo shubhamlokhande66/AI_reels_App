@@ -68,6 +68,20 @@ export function createTasks(host: HTMLElement) {
   let notes: string[] = [], note = 0, noteTimer: ReturnType<typeof setInterval> | undefined;
   // the screen stays on while the AI works (where the browser allows it)
   let awake: { release: () => Promise<void> } | null = null, asking = false;
+  // in another tab: a held lock keeps the browser from freezing this one, and a sound nobody can hear keeps its timers on time
+  // (a phone's browser with its screen off may still stop the page: the words say so)
+  let stayEnd: (() => void) | null = null, hum: AudioContext | null = null;
+  const stayAlive = (on: boolean) => {
+    if (!on) { stayEnd?.(); stayEnd = null; void hum?.close().catch(() => undefined); hum = null; return; }
+    if (stayEnd) return;
+    const held = new Promise<void>((done) => { stayEnd = done; });
+    try { void (navigator as unknown as { locks?: { request(n: string, f: () => Promise<void>): Promise<void> } }).locks?.request("shubix-work", () => held).catch(() => undefined); } catch { /* an older browser */ }
+    try {
+      if (typeof AudioContext === "undefined") return;
+      hum = new AudioContext(); const o = hum.createOscillator(), g = hum.createGain(); g.gain.value = 0.0001; o.connect(g); g.connect(hum.destination); o.start();
+      void hum.resume().catch(() => undefined);
+    } catch { /* no sound here: only the lock */ }
+  };
   const stayAwake = async (on: boolean) => {
     if (!on) { const a = awake; awake = null; await a?.release().catch(() => undefined); return; }
     if (awake || asking) return;
@@ -82,6 +96,7 @@ export function createTasks(host: HTMLElement) {
   // the popup shows while a process with no screen of its own runs
   function refresh() {
     const shown = [...cards].filter(([id, c]) => !onOwnScreen(c) && !hiddenIds.has(id));
+    stayAlive(cards.size > 0);
     // one card, the newest: the popup never scrolls (the others are in its steps)
     const newest = shown[shown.length - 1]?.[0];
     cards.forEach((c, id) => { c.el.hidden = id !== newest; });
@@ -90,7 +105,7 @@ export function createTasks(host: HTMLElement) {
     if (box.hidden) { stopNotes(); hiddenIds.clear(); hideOk = false; clearTimeout(hideTimer); return; }
     if (was) { hideOk = false; clearTimeout(hideTimer); hideTimer = setTimeout(() => { hideOk = true; refresh(); }, 30_000); }
     head.hidden = steps.hidden = !guard; if (guard) paintSteps();
-    notes = locked || shown.some(([, c]) => c.kind === "ai") ? [tx("Keep Shubix open until this is done."), tx("Closing now may lose this Reel's credits."), ...(guard && locked ? [tx("Shubix AI has started working on this Reel. You can't cancel now.")] : [])] : [];
+    notes = locked || shown.some(([, c]) => c.kind === "ai") ? [tx(window.matchMedia?.("(pointer: coarse)").matches ? "Keep this page open with the screen on." : "You can switch tabs. Keep this tab open."), tx("Closing it now may lose this Reel's credits."), ...(guard && locked ? [tx("Shubix AI has started working on this Reel. You can't cancel now.")] : [])] : [];
     why.hidden = !notes.length; if (notes.length) why.textContent = notes[note % notes.length];
     if (notes.length) void stayAwake(true);
     if (!notes.length) stopNotes(); else if (!noteTimer) noteTimer = setInterval(() => { why.textContent = notes[++note % notes.length]; }, 3500);

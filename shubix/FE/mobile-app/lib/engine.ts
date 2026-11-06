@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { AppRegistry, Platform } from "react-native";
 import { askAction, tasks, tell, type TaskKind } from "@mobile/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
 import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
@@ -28,8 +28,16 @@ export type ExportOptions = { res: Record<"720" | "1080" | "4k", { locked: boole
 let held = "", clipRead: ((name: string, ok: boolean) => void) | null = null;
 /** told as each clip is read: its card shows it */
 export const onClipRead = (fn: typeof clipRead) => { clipRead = fn; };
-/** the screen stays on while the phone works for the person (Shubix AI, the export) */
-export const keepAwake = (on: boolean) => { try { ShubixVideo?.keepAwake?.(on); } catch { /* an older build: nothing */ } };
+/** The person's work goes on while they are away (the screen off, another app): a notification says so, the screen stays on
+ * while they watch. Counted: it ends when the last job has ended. The JS task only keeps the app's timers running. */
+let working = 0, endTask: (() => void) | null = null;
+if (Platform.OS === "android") AppRegistry.registerHeadlessTask("ShubixWork", () => () => new Promise<void>((done) => { endTask = done; }));
+export const keepAwake = (on: boolean, title = "Shubix is working on your Reel") => {
+  working = Math.max(0, working + (on ? 1 : -1));
+  if (on ? working !== 1 : working !== 0) return;
+  try { ShubixVideo?.keepAwake?.(on, title); } catch { /* an older build: nothing */ }
+  if (!on) { endTask?.(); endTask = null; }
+};
 const files = ShubixVideo ? ShubixVideo.fileServer(API_URL) : null;
 
 /** whether this phone can make Reels with the studio (the app's own build, not Expo Go or the web) */
