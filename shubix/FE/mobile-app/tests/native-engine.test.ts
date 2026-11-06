@@ -338,3 +338,26 @@ describe("Shubix AI's price before Make Reel", () => {
     }
   }, 30_000);
 });
+
+describe("the clips before Shubix AI", () => {
+  const counted = () => { const s = fileServer(clickTrack(30)), read: string[] = []; const fetcher = async (to: string, init?: { method?: string; body?: unknown }) => { const u = new URL(to); if (u.pathname === "/scan") read.push(u.searchParams.get("p")!); return s.fetcher(to, init); }; return { read, e: createNativeEngine({ base: "http://phone", key: "k", fetch: fetcher as never } as never) }; };
+  it("reads only a new clip, also after one was taken out or moved", async () => {
+    const { e, read } = counted();
+    await e.call("song", { path: "/s.mp3", name: "s.mp3" });
+    await e.call("clips", { paths: clips });
+    expect(read).toEqual(["/a.mp4", "/b.mp4", "/c.mp4"]);
+    expect((await e.call("clips", { paths: [clips[2], clips[0]] }) as { names: string[] }).names).toEqual(["c.mp4", "a.mp4"]);
+    expect(read).toHaveLength(3);
+    const more = await e.call("clips", { paths: [clips[2], clips[0], clips[1], { path: "/d.mp4", name: "d.mp4" }] }) as { names: string[] };
+    expect(more.names).toEqual(["c.mp4", "a.mp4", "b.mp4", "d.mp4"]);
+    expect(read).toEqual(["/a.mp4", "/b.mp4", "/c.mp4", "/d.mp4"]);
+  });
+  it("says how much good video there is for the Reel's length", async () => {
+    const { e } = await reel(30);
+    const f = await e.call("footage") as { have: number; need: number };
+    expect(f.need).toBeCloseTo(30, 0);
+    expect(Number.isInteger(f.have)).toBe(true);
+    expect(f.have).toBeGreaterThan(5);
+    expect(f.have).toBeLessThanOrEqual(24);   // three clips of 8 s
+  });
+});

@@ -170,6 +170,8 @@ export const engine = {
   /** Make new Reel: charged as a new Reel; Keep old Reel: the studio holds that Reel again */
   newReel: () => call<{ ok: boolean }>("newReel"),
   keptOldReel: () => call<{ ok: boolean }>("keptOldReel"),
+  /** the good footage in the clips read (whole seconds) and the Reel's length */
+  footage: () => call<{ have: number; need: number }>("footage"),
   /** Shubix AI's price for this Reel and the balance */
   aiPrice: () => call<{ on: boolean; cost: number; balance: number | null }>("aiPrice"),
   /** whether this person's plan has Shubix AI */

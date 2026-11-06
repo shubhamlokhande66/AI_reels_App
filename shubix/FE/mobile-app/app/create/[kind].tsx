@@ -36,6 +36,7 @@ function CreateFlowScreen() {
   const [settings, setSettings] = useState<ClipSettings>({ order: "order", aspect: "9:16", pace: "natural", under: "0.09" });
   const [wish, setWish] = useState(""), [working, setWorking] = useState(false), [focused, setFocused] = useState(true);
   const [clipState, setClipState] = useState<Record<string, ClipState>>({});
+  const clipBad = useRef(clipState); clipBad.current = clipState;
   // the song and the clips are read one after another behind the screen (one heavy job at a time on a phone)
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const later = <T,>(job: () => Promise<T>) => {
@@ -45,6 +46,7 @@ function CreateFlowScreen() {
   // what a job finishing behind the screen has changed, for Make Reel, which waited for it
   const now = useRef({ music, start, length }); now.current = { music, start, length };
   const [price, setPrice] = useState<{ on: boolean; cost: number; balance: number | null } | null>(null);
+  const keptBy = useRef(new Map<string, { clip: ProjectClip; name: string }>()), copied = useRef(0), lengthLater = useRef(0), badTold = useRef(0);
   const lengthChosen = useRef(false), onScreen = useRef(true), DRAFT = `create-draft-${kind}`;
   useEffect(() => { void recentSongs().then(setRecent); }, []);
 
@@ -124,11 +126,14 @@ function CreateFlowScreen() {
     tasks.start("flow", "clips", words("Adding your clips"), `${words("Clip")} 1 / ${list.length}`);
     // each clip's card says how it goes (its number in the name it is read by)
     setClipState((was) => Object.fromEntries(list.map((m) => [m.uri, was[m.uri] === "ok" ? "ok" : "wait"])));
-    onClipRead((name, ok) => { const m = list[parseInt(name, 10) - 1]; if (m) setClipState((was) => ({ ...was, [m.uri]: ok ? "ok" : "bad" })); });
+    onClipRead((name, ok) => { const m = list.find((x) => keptBy.current.get(x.uri)?.name === name); if (m) setClipState((was) => ({ ...was, [m.uri]: ok ? "ok" : "bad" })); });
     try {
-      // only the new ones are copied (what is kept stays, unless a clip was taken out or moved)
-      const same = kept.current.uris.every((u, i) => u === list[i]?.uri), had = same ? kept.current.clips : [], rest = list.slice(had.length);
-      const clips = [...had, ...await keepPickedAssets(draft.current, rest, (n) => tasks.update("flow", (had.length + n) / list.length, `${words("Clip")} ${Math.min(list.length, had.length + n + 1)} / ${list.length}`), had.length)];
+      // only the new ones are copied and read: what is kept stays, also when a clip is taken out or moved
+      const rest = list.filter((m) => !keptBy.current.has(m.uri)), from = copied.current;
+      const got = await keepPickedAssets(draft.current, rest, (n) => tasks.update("flow", (list.length - rest.length + n) / list.length, `${words("Clip")} ${Math.min(list.length, list.length - rest.length + n + 1)} / ${list.length}`), from);
+      copied.current += rest.length;
+      rest.forEach((m, i) => keptBy.current.set(m.uri, { clip: got[i], name: `${from + i + 1}-${got[i].name}` }));
+      const clips = list.map((m) => keptBy.current.get(m.uri)!.clip);
       kept.current = { uris: list.map((m) => m.uri), clips };
       let sources = clips;
       if (engineOn && sg) {
@@ -141,13 +146,14 @@ function CreateFlowScreen() {
           if (start) await engine.part(start);
         }
         await engine.choose({ order: settings.order, aspect: settings.aspect, mode: styleNow() || "auto" });
-        // each clip numbered (phones name many clips the same): the ones the studio kept, in its order
-        const names = (await engine.clips(clips.map((c, i) => ({ uri: c.uri, name: `${i + 1}-${c.name}` })))).names;
+        // each clip numbered once (phones name many clips the same): the ones the studio kept, in its order
+        const names = (await engine.clips(list.map((m) => { const k = keptBy.current.get(m.uri)!; return { uri: k.clip.uri, name: k.name }; }))).names;
         if (!making.current) return false;
         // heavy clips (4K / HDR / 60 fps / a changing frame rate): the studio's smooth copies play instead (the phone's
         // preview and export decode them easily; the Reel is the same)
         const copies = new Map((await engine.copies()).map((c) => [c.name, c]));
-        sources = names.map((n) => { const c = clips[parseInt(n, 10) - 1], copy = copies.get(n); return c && copy ? { ...c, uri: `file://${copy.path}` } : c; }).filter((c): c is ProjectClip => !!c);
+        const byName = new Map([...keptBy.current.values()].map((k) => [k.name, k.clip]));
+        sources = names.map((n) => { const c = byName.get(n), copy = copies.get(n); return c && copy ? { ...c, uri: `file://${copy.path}` } : c; }).filter((c): c is ProjectClip => !!c);
       }
       if (!making.current) return false;
       read.current = { key: keyOf(list), clips, sources }; askAgain.current = false;
@@ -160,7 +166,7 @@ function CreateFlowScreen() {
   }
   // Keep old Reel: the clips and song it was made from again, and the editor with it
   async function keepOldReel(old: NonNullable<typeof madeReel.current>) {
-    setMedia(old.media); setSong(old.song); setLength(old.length); draft.current = old.id; kept.current = old.kept;
+    setMedia(old.media); setSong(old.song); setLength(old.length); draft.current = old.id; kept.current = old.kept; keptBy.current = new Map(old.media.map((m, i) => [m.uri, { clip: old.kept.clips[i], name: `${i + 1}-${old.kept.clips[i]?.name}` }])); copied.current = old.media.length;
     if (old.song && heard.current !== old.song.uri) await hear(old.song);
     setStart(old.start);
     if (await readClips(old.media, old.song)) { await engine.keptOldReel().catch(() => undefined); setStep("clips"); router.push({ pathname: "/editor", params: { id: old.id } }); }
@@ -168,11 +174,27 @@ function CreateFlowScreen() {
   async function addMedia() {
     const got = await pickInOrder({ kind: photos ? "image" : "video", limit: Math.max(1, 30 - media.length) }); // in the order tapped ("In my order")
     if (!got) return;
-    const list = [...media, ...got].slice(0, 30);
+    // the very same file twice: out at once, before any work on it
+    const keyOf1 = (m: ImagePicker.ImagePickerAsset) => m.assetId || m.uri, seen = new Set(media.map(keyOf1));
+    const fresh = got.filter((m) => { const k = keyOf1(m); if (seen.has(k)) return false; seen.add(k); return true; });
+    if (fresh.length < got.length) tell(words("Same clip already added, removed"), "info");
+    if (!fresh.length) return;
+    const list = [...media, ...fresh].slice(0, 30);
     setMedia(list); void later(() => readClips(list));
   }
   // Next after the clips: Free or Add more credits (a plan without Shubix AI), or Shubix AI's question and its work in the popup; the
   // draft saved, then the editor with the Reel. Without the engine (Expo Go) the clips play in turn.
+  // too little good video for the Reel: nothing was taken; more clips, or a Reel as long as they are
+  async function tooShort(have: number, need: number): Promise<"stop" | "go"> {
+    const secs = Math.floor(have), can = secs >= 5;
+    const v = await askAction({ title: words("Not enough clips"), body: words("Your clips have {h} s of good video. Your Reel is {n} s. No credits were used.", { h: secs, n: Math.round(need) }), ok: words("Add clips"), ...(can ? { cancel: words("Make a {h} s Reel", { h: secs }) } : {}) });
+    if (v === 0) { void addMedia(); return "stop"; }
+    if (v !== 1 || !can) return "stop";
+    lengthChosen.current = true;
+    if (now.current.music) await lengthTo(secs); else { setLength(secs); lengthLater.current = secs; }
+    await new Promise((ok) => setTimeout(ok, 0));
+    return "go";
+  }
   async function make() {
     // the one popup from here on, and the screen stays on
     tasks.quiet(false); keepAwake(true, words("Shubix is making your Reel"));
@@ -187,7 +209,7 @@ function CreateFlowScreen() {
       const v = await askAction({ title: words("You changed your Reel"), body: words("Your song or clips are different now. Make a new Reel with these changes? Keeping the old Reel changes nothing and uses no credits."), ok: words("Make new Reel"), cancel: words("Keep old Reel") });
       if (v === 1) return void keepOldReel(old);
       if (v !== 0) return;
-      draft.current = `draft-${Date.now()}`; kept.current = { uris: [], clips: [] }; read.current = null;
+      draft.current = `draft-${Date.now()}`; kept.current = { uris: [], clips: [] }; keptBy.current = new Map(); copied.current = 0; read.current = null;
     }
     // a plan without Shubix AI is asked first, without waiting for the clips
     if (engineOn && song && !(await engine.aiOn().catch(() => true))) {
@@ -202,6 +224,11 @@ function CreateFlowScreen() {
       if (v === 0) router.push("/credits");
       if (v !== 1) return;
     } else if (p?.on) tasks.note(p.cost && p.balance !== null ? words("Shubix AI: {n} credits · {b} left after", { n: p.cost, b: p.balance - p.cost }) : p.cost ? words("Shubix AI: {n} credits", { n: p.cost }) : words("Shubix AI: included in your plan"));
+    // too few clips can be said now: their lengths are known (photos fit any length)
+    if (engineOn && song && media.every((m) => m.type !== "image" && m.duration)) {
+      const have = media.reduce((t, m) => t + (m.duration ?? 0) / 1000, 0), need = length || now.current.music?.duration || song.duration || 0;
+      if (need && have < need * 0.95 && (await tooShort(have, need)) === "stop") return;
+    }
     // what is still being read behind the screen: the popup shows it now
     await queue.current; await new Promise((ok) => setTimeout(ok, 0));
     if (engineOn && song && !now.current.music) {
@@ -212,6 +239,18 @@ function CreateFlowScreen() {
     if (read.current?.key !== keyOf(media)) {
       if (askAgain.current && !(await notDone(words("Your clips' analysis did not finish.")))) return;
       if (!(await readClips(media))) return;
+    }
+    // what the reading found, before Shubix AI and before any credits: a clip left out, too little good video
+    if (lengthLater.current) { const n = lengthLater.current; lengthLater.current = 0; await lengthTo(n); await new Promise((ok) => setTimeout(ok, 0)); }
+    const bad = media.filter((m) => clipBad.current[m.uri] === "bad").length;
+    if (bad && badTold.current !== bad) {
+      const v = await askAction({ title: words(bad > 1 ? "{n} clips could not be read" : "{n} clip could not be read", { n: bad }), body: words("They are left out of your Reel. No credits were used."), ok: words("Continue without them"), cancel: words("Go back") });
+      if (v !== 0) return;
+      badTold.current = bad;
+    }
+    if (engineOn && song) {
+      const f = await engine.footage().catch(() => null);
+      if (f && f.need && f.have < f.need * 0.95 && (await tooShort(f.have, f.need)) === "stop") return;
     }
     const id = draft.current, { sources } = read.current!, style = styleNow(), { music: heardMusic, start: at, length: long } = now.current;
     let clips = read.current!.clips, studio = false;

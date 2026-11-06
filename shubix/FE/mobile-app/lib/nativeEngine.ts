@@ -1,6 +1,6 @@
 import { createHost, soundOf } from "../engine/brain/host";
 import initial from "../engine/brain/initial-state.json";
-import { limitStereo } from "../engine/brain/pure";
+import { goodSecs, limitStereo } from "../engine/brain/pure";
 import { TTS_VOICES, voiceLanguage } from "../engine/lib/tts/voices";
 
 /** The studio: its operations run on the brain in the app's own JS, with the phone's own code doing the heavy work through
@@ -74,6 +74,7 @@ export function wavOf(buf: { length: number; sampleRate: number; numberOfChannel
 export function createNativeEngine(io: NativeIo) {
   const make = () => createHost(JSON.stringify(initial), { analyse: (m: Float32Array, sr: number, opts: Args) => analyse(m, sr, opts), getCtx, apiFetch, aiFrames, readSound, ask: (q: Parameters<NonNullable<NativeIo["ask"]>>[0]) => io.ask ? io.ask(q) : Promise.resolve(null), stat: io.stat, spent: io.spent, tell: io.tell, task: io.task, voices: TTS_VOICES, speak });
   let host = make(), signedIn = false;
+  const readBefore = new Map<string, unknown>();
   let stops = 0, read: Clip[] = [], reading = 0, copies: { name: string; path: string; w: number; h: number }[] = [];
   const url = (path: string, q = "") => `${io.base}/${path}?k=${io.key}${q}`;
   /** a file's sound, read by the phone (SoundReader.kt); it fails when the file has none */
@@ -189,13 +190,15 @@ export function createNativeEngine(io: NativeIo) {
     const scan = lastLine(await (await io.fetch(url("scan", q), { method: "POST" })).text(), "{");
     let raw: { t: number; rects: unknown[] }[] = [];
     try { raw = lastLine(await (await io.fetch(url("faces", `${q}&w=${W}&h=${H}`), { method: "POST" })).text(), "["); } catch { /* no faces read: the Reel is still made */ }
-    host.addClip({ name: c.name, path, soundPath: c.path, dur, w: W, h: H, samples: scan.samples, scenes: scan.scenes, faces: host.brain.trackFaces(raw), faceHow: "blazeface" });
+    const src = host.addClip({ name: c.name, path, soundPath: c.path, dur, w: W, h: H, samples: scan.samples, scenes: scan.scenes, faces: host.brain.trackFaces(raw), faceHow: "blazeface" });
+    readBefore.set(c.name, src);
   }
   async function clips(a: Args) {
-    const list = a.paths as Clip[], g = stops, names = list.map((c) => c.name), had = host.ES.sources.map((s: { name: string }) => s.name);
-    const keep = had.every((n: string, i: number) => names.indexOf(n) >= 0 && (i === 0 || names.indexOf(n) > names.indexOf(had[i - 1])));
-    if (!keep) { host.ES.sources.length = 0; }
-    const known = host.ES.sources.map((s: { name: string }) => s.name), fresh = list.filter((c) => !known.includes(c.name));
+    const list = a.paths as Clip[], g = stops, names = list.map((c) => c.name);
+    // what was read stays read, by the clip's name: a clip added, taken out or moved never reads the others again
+    host.ES.sources.length = 0;
+    for (const c of list) { const known = readBefore.get(c.name); if (known) host.ES.sources.push(known); }
+    const fresh = list.filter((c) => !readBefore.has(c.name));
     const failed: string[] = []; let lastError: unknown;
     reading++;
     if (fresh.length) io.task?.("start", "clips", "Reading your clips", `Finding the best moments in ${fresh.length} clip${fresh.length > 1 ? "s" : ""}`, "clips");
@@ -247,6 +250,8 @@ export function createNativeEngine(io: NativeIo) {
     seek: (a) => { host.ES.pos = Math.max(0, Number(a.time) || 0); return { time: host.ES.pos }; },
     remix: () => { host.brain.remixNow?.(); return { ok: true, state: state() }; },
     aiState: async () => { if (!signedIn) { signedIn = true; await host.account().catch(() => false); } return { on: !!host.ES.aiOn }; },
+    /** the good footage in the clips read, in whole seconds, and the Reel's length: enough clips? */
+    footage: () => ({ have: Math.floor(host.ES.sources.reduce((t: number, c: Parameters<typeof goodSecs>[0]) => t + goodSecs(c), 0)), need: (host.ES.buf?.duration as number | undefined) ?? 0 }),
     /** Shubix AI's price for this Reel and the person's balance, read again each time: shown before Make Reel */
     aiPrice: async () => { signedIn = true; await host.account().catch(() => false); return { on: !!host.ES.aiOn, cost: host.brain.aiCostOf("reel") as number, balance: host.brain.aiBal() as number | null }; },
     /** Make Reel was pressed with the price on the screen: that is the person's answer, so nothing is asked again */
@@ -331,7 +336,7 @@ export function createNativeEngine(io: NativeIo) {
   const NOT_YET: string[] = [];
   return {
     has: (op: string) => op in ops, notYet: NOT_YET, ascii, read: () => read, host: () => host,
-    fresh: () => { stops++; read = []; copies = []; signedIn = false; host = make(); },
+    fresh: () => { stops++; read = []; copies = []; readBefore.clear(); signedIn = false; host = make(); },
     call: async (op: string, a: Args = {}) => { const f = ops[op]; if (!f) throw new Error(`Not on the phone's own engine yet: ${op}`); return f(a); },
   };
 }
