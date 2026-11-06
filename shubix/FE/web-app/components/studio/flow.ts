@@ -79,7 +79,7 @@ export function initFlow(root: HTMLElement): () => void {
   // Shubix's line under the clips ends in "…" while it works (scoring the clips, the pace, planning the shots, the mixes)
   // Shubix AI still working on the Reel (the studio's own state; its status line can end in "…" when it is only cut short)
   const aiWorking = () => { const w = (root as unknown as { __studio?: { work?: { ai?: boolean; dir?: boolean; pace?: boolean; aiWait?: boolean } } }).__studio?.work; return !!w && (!!w.ai || !!w.dir || !!w.pace || !!w.aiWait); };   // (aiWait: agreed to, its plan not here yet, also between its steps)
-  type Live = { upsell?: () => Promise<string>; changeGate?: () => Promise<string>; keepOldReel?: () => void; saveNow?: () => Promise<string>; askNotDone?: () => Promise<boolean>; cancelled?: () => { song: boolean; clips: boolean }; guard?: (on: boolean) => void };
+  type Live = { aiPrice?: () => { on: boolean; cost: number; balance: number | null; low: boolean }; askLow?: () => Promise<unknown>; upsell?: () => Promise<string>; changeGate?: () => Promise<string>; keepOldReel?: () => void; saveNow?: () => Promise<string>; askNotDone?: () => Promise<boolean>; cancelled?: () => { song: boolean; clips: boolean }; guard?: (on: boolean) => void };
   const live = () => (root as unknown as { __studio?: Live }).__studio;
   const stopped = () => live()?.cancelled?.() ?? { song: false, clips: false };
   let aiRunNo = 0;   // the wait for the Reel that the popup's Cancel ended
@@ -308,6 +308,12 @@ export function initFlow(root: HTMLElement): () => void {
       setText($(t), !songOk() && !stopped().song && !songBusy ? "Choose a song to continue" : b === "fadjnext" ? "Done" : "Next");
     }
     setFlag($("fadjust"), "hidden", has("talkmode") || (!songOk() && !songBusy));
+    // Shubix AI's price and the balance, on the screen before Generate (pressing it is the answer)
+    const price = live()?.aiPrice?.();
+    const priced = !price?.on ? "" : !price.cost ? "Shubix AI: included in your plan" : price.balance === null ? `Shubix AI: ${price.cost} credits` : `Shubix AI: ${price.cost} credits · You have ${price.balance}`;
+    for (const id of ["fcredit", "fcredit2"]) { setText($(id), priced); setFlag($(id), "hidden", !priced || !goes); }
+    const left = !price?.on || !price.cost || price.low ? "" : price.balance === null ? `Shubix AI: ${price.cost} credits` : `Shubix AI: ${price.cost} credits · ${Math.max(0, price.balance - price.cost)} left after`;
+    if ((root.dataset.fcredit ?? "") !== left) root.dataset.fcredit = left;
     setFlag($<HTMLButtonElement>("fgen"), "disabled", (!ready && !paused && !goes) || wantGen);
     setAttr($("fclipsnext"), "aria-busy", String(wantGen));
     setAttr($("fgen"), "aria-busy", String(wantGen));
@@ -402,6 +408,8 @@ export function initFlow(root: HTMLElement): () => void {
     if (t.closest("#fadjust")) { go("adjust"); return; }
     if (t.closest("#slen") && e.isTrusted) lengthTouched = true;
     if (t.closest("#fgen")) {
+      // too few credits: said at once, before any waiting (Top up, or the Reel with the phone's own edit)
+      if (live()?.aiPrice?.().low) { void live()!.askLow!().then(() => { const g = $<HTMLButtonElement>("fgen"); g.disabled = false; g.click(); }); return; }
       // still being read: the one popup shows it now, and this goes on by itself when it is done
       if (!stopped().song && !stopped().clips && (working.size > 0 || shubixBusy() || !made())) { wantGen = true; apply(); return; }
       // Free: first, once per Reel, why Shubix AI is worth it (Upgrade, Create basic Reel, or ✕ to stay here)

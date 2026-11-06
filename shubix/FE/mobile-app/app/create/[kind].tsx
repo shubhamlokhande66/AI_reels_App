@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BackHandler, Keyboard, Platform, ScrollView, View } from "react-native";
+import { BackHandler, Keyboard, Platform, ScrollView, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,6 +44,7 @@ function CreateFlowScreen() {
   };
   // what a job finishing behind the screen has changed, for Make Reel, which waited for it
   const now = useRef({ music, start, length }); now.current = { music, start, length };
+  const [price, setPrice] = useState<{ on: boolean; cost: number; balance: number | null } | null>(null);
   const lengthChosen = useRef(false), onScreen = useRef(true), DRAFT = `create-draft-${kind}`;
   useEffect(() => { void recentSongs().then(setRecent); }, []);
 
@@ -175,7 +176,7 @@ function CreateFlowScreen() {
   async function make() {
     // the one popup from here on, and the screen stays on
     tasks.quiet(false); keepAwake(true, words("Shubix is making your Reel"));
-    try { await makeReel(); } finally { keepAwake(false); if (onScreen.current) tasks.quiet(true); }
+    try { await makeReel(); } finally { keepAwake(false); tasks.note(""); if (onScreen.current) tasks.quiet(true); }
   }
   async function makeReel() {
     // a Reel was made here: nothing changed, the same Reel; changed, a new Reel is asked for (it costs credits), or the old one stays
@@ -194,6 +195,13 @@ function CreateFlowScreen() {
       if (v === 0) router.push("/credits");
       if (v !== 1) return;
     }
+    // too few credits: said at once, before any waiting; the Reel can still be made by the phone's own edit
+    const p = engineOn && song ? await engine.aiPrice().catch(() => null) : null;
+    if (p?.on && p.cost && p.balance !== null && p.balance < p.cost) {
+      const v = await askAction({ title: words("Not enough credits"), body: words("Shubix AI needs {n} credits and you have {b}.", { n: p.cost, b: p.balance }), ok: words("Add more credits"), cancel: words("Free edit") });
+      if (v === 0) router.push("/credits");
+      if (v !== 1) return;
+    } else if (p?.on) tasks.note(p.cost && p.balance !== null ? words("Shubix AI: {n} credits · {b} left after", { n: p.cost, b: p.balance - p.cost }) : p.cost ? words("Shubix AI: {n} credits", { n: p.cost }) : words("Shubix AI: included in your plan"));
     // what is still being read behind the screen: the popup shows it now
     await queue.current; await new Promise((ok) => setTimeout(ok, 0));
     if (engineOn && song && !now.current.music) {
@@ -231,6 +239,9 @@ function CreateFlowScreen() {
     } catch (e) { const gone = !making.current; making.current = false; tasks.clear("flow"); tasks.unlock(); if (!gone) tell(errorMessage(e), "danger"); setStep("clips"); }
   }
 
+  // Shubix AI's price and the balance, on the screen before Make Reel (pressing it is the answer)
+  useEffect(() => { if (step === "clips" && focused && engineOn) void engine.aiPrice().then(setPrice).catch(() => setPrice(null)); }, [step, focused]); // eslint-disable-line react-hooks/exhaustive-deps
+  const priceLine = !price?.on ? "" : !price.cost ? words("Shubix AI: included in your plan") : price.balance === null ? words("Shubix AI: {n} credits", { n: price.cost }) : words("Shubix AI: {n} credits · You have {b}", { n: price.cost, b: price.balance });
   // what the person chose stays: an app that was closed can go on from it
   useEffect(() => {
     if (!media.length && !song) return;
@@ -285,7 +296,7 @@ function CreateFlowScreen() {
         {step === "clips" && song && needSong && <View className="mb-3"><Button variant="secondary" icon="music" title={words("Adjust music")} onPress={() => go("adjust")} /></View>}
         {step === "clips" && <FlowClips kind={kind} photos={photos} onTab={(p) => { setPhotos(p); setMedia([]); }} media={media} states={media.map((m) => clipState[m.uri])} onAdd={() => void addMedia()} onRemove={(i) => setMedia((m) => m.filter((_, j) => j !== i))} onMove={(from, to) => setMedia((m) => { const list = [...m], [one] = list.splice(from, 1); list.splice(to, 0, one); return list; })} play={focused && !working && step === "clips"} settings={settings} onSettings={(s) => setSettings((o) => ({ ...o, ...s }))} />}
       </ScrollView>
-      {button && <View className="px-4 pt-2" style={{ paddingBottom: Math.max(12, insets.bottom + 4) }}><Button full size="xl" title={button.title} iconAfter={button.on ? "arrow" : undefined} disabled={!button.on} onPress={() => { Keyboard.dismiss(); button.press(); }} /></View>}
+      {button && <View className="gap-1.5 px-4 pt-2" style={{ paddingBottom: Math.max(12, insets.bottom + 4) }}>{step === "clips" && !!priceLine && <Text className="text-center text-[12.5px] font-semibold text-muted">{priceLine}</Text>}<Button full size="xl" title={button.title} iconAfter={button.on ? "arrow" : undefined} disabled={!button.on} onPress={() => { Keyboard.dismiss(); button.press(); }} /></View>}
     </View>
   );
 }

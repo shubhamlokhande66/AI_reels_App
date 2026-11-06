@@ -309,3 +309,32 @@ describe("clips read behind the screen", () => {
     await expect(e.call("clips", { paths: clips })).rejects.toThrow(/cannot be read/);
   });
 });
+
+describe("Shubix AI's price before Make Reel", () => {
+  const ok = (body: unknown) => ({ ok: true, status: 200, text: async () => String(body), json: async () => body, arrayBuffer: async () => body as ArrayBuffer });
+  const priced = (balance: number) => {
+    const s = fileServer(clickTrack(10)), asked: string[] = [];
+    const fetcher = async (to: string, init?: { method?: string; body?: unknown }) => {
+      const p = new URL(to).pathname;
+      if (p === "/api/studio/rank-shots" && (init?.method ?? "GET") === "GET") return ok({ available: true, planAi: true, costs: { reel: 10 }, balance });
+      if (p === "/api/credits") return ok({ enabled: true, plan: "editor" });
+      if (p === "/api/plan-locks") return ok({});
+      if (p.startsWith("/api/")) return { ok: false, status: 503, text: async () => "no", json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) };
+      return s.fetcher(to, init);
+    };
+    return { asked, e: createNativeEngine({ base: "http://phone", key: "k", fetch: fetcher as never, ask: async (q: { title: string }) => { asked.push(q.title); return true; } } as never) };
+  };
+  it("gives the price and the balance", async () => {
+    expect(await priced(240).e.call("aiPrice")).toEqual({ on: true, cost: 10, balance: 240 });
+  });
+  it("asks nothing again after Make Reel, with credits or without", async () => {
+    for (const balance of [240, 3]) {
+      const { e, asked } = priced(balance);
+      await e.call("song", { path: "/s.mp3", name: "s.mp3" });
+      await e.call("clips", { paths: clips });
+      await e.call("aiPrice");
+      expect((await e.call("ai") as { went: boolean }).went).toBe(true);
+      expect(asked).toEqual([]);
+    }
+  }, 30_000);
+});

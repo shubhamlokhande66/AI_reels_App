@@ -247,7 +247,16 @@ export function createNativeEngine(io: NativeIo) {
     seek: (a) => { host.ES.pos = Math.max(0, Number(a.time) || 0); return { time: host.ES.pos }; },
     remix: () => { host.brain.remixNow?.(); return { ok: true, state: state() }; },
     aiState: async () => { if (!signedIn) { signedIn = true; await host.account().catch(() => false); } return { on: !!host.ES.aiOn }; },
-    ai: async () => { if (!signedIn) { signedIn = true; await host.account().catch(() => false); } const g = stops; const went = await host.runAi(); return { went: went && stops === g }; },
+    /** Shubix AI's price for this Reel and the person's balance, read again each time: shown before Make Reel */
+    aiPrice: async () => { signedIn = true; await host.account().catch(() => false); return { on: !!host.ES.aiOn, cost: host.brain.aiCostOf("reel") as number, balance: host.brain.aiBal() as number | null }; },
+    /** Make Reel was pressed with the price on the screen: that is the person's answer, so nothing is asked again */
+    ai: async () => {
+      if (!signedIn) { signedIn = true; await host.account().catch(() => false); }
+      const g = stops, id = host.brain.reelIdNow(), cost = host.brain.aiCostOf("reel") as number, balance = host.brain.aiBal() as number | null;
+      if (cost && balance !== null && balance < cost) host.ES.lowAsked = id; else host.ES.aiReel = id;
+      const went = await host.runAi();
+      return { went: went && stops === g };
+    },
     newReel: () => { host.brain.newReel?.(); host.ES.regenOk = true; host.ES.reelId = ""; host.ES.aiReel = ""; host.ES.gateNo = ""; host.ES.director = null; return { ok: true }; },
     keptOldReel: () => ({ ok: true }),
     aiPlan: () => { const d = host.ES.director; return d && d.slots && !d.interim ? { story: d.story || "", lines: [] } : null; },

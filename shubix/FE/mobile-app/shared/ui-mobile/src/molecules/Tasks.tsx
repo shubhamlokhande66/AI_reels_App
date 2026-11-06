@@ -18,7 +18,7 @@ export type TaskKind = "music" | "clips" | "ai" | "export" | "cloud" | "voice";
 export type TaskGuard = { onCancel: () => void; onCancelReel: () => void };
 type Task = { id: string; kind: TaskKind; title: string; detail: string; p: number | null; t0: number; state: "run" | "done" | "fail" };
 
-let list: Task[] = [], guard: TaskGuard | null = null, locked = false, quiet = false;
+let list: Task[] = [], guard: TaskGuard | null = null, locked = false, quiet = false, note = "";
 // what the Create flow's popup lists, in order (a process's id, its line)
 const STEPS: [string, string][] = [["song", "Reading your song"], ["beats", "Checking every beat"], ["clips", "Preparing and analysing your clips"], ["ai", "Shubix AI editing your Reel"]];
 const doneSteps = new Set<string>();
@@ -57,6 +57,8 @@ export const tasks = {
   unlock: () => { locked = false; emit(); },
   /** The Create flow's work before Make Reel goes on behind the screen: its steps are counted, no popup. */
   quiet: (on: boolean) => { quiet = on; emit(); },
+  /** The popup's line under its title (what Shubix AI uses) */
+  note: (text: string) => { note = text; emit(); },
 };
 
 const left = (s: number) => (s < 1.5 ? "almost done" : s < 60 ? `about ${Math.ceil(s)} s left` : `about ${Math.ceil(s / 60)} min left`);
@@ -112,7 +114,7 @@ function TaskCard({ t }: { t: Task }) {
 
 /** The popup. The screen's own step ("flow") shows only while no process of the studio has a card of its own. */
 export function TaskHost({ cancel, cancelReel, cantCancel, hide, words = (s) => s }: { cancel: string; cancelReel: string; cantCancel: string; hide: string; words?: (s: string) => string }) {
-  const all = useSyncExternalStore(subscribe, () => list), g = useSyncExternalStore(subscribe, () => guard), lock = useSyncExternalStore(subscribe, () => locked), hush = useSyncExternalStore(subscribe, () => quiet), asking = useAskOpen();
+  const all = useSyncExternalStore(subscribe, () => list), g = useSyncExternalStore(subscribe, () => guard), lock = useSyncExternalStore(subscribe, () => locked), hush = useSyncExternalStore(subscribe, () => quiet), line = useSyncExternalStore(subscribe, () => note), asking = useAskOpen();
   const [hidden, setHidden] = useState<string[]>([]), [late, setLate] = useState(false);
   const running = all.filter((t) => t.kind !== "export" && !hidden.includes(t.id)), own = running.filter((t) => t.id !== "flow"), shown = own.length ? own : running;
   const on = shown.length > 0;
@@ -130,7 +132,7 @@ export function TaskHost({ cancel, cancelReel, cantCancel, hide, words = (s) => 
             <View className="items-center gap-1.5">
               <Text className="text-[11px] font-bold uppercase tracking-[2.4px] text-accent">{words("Shubix Studio")}</Text>
               <Text className="text-center text-[24px] font-semibold tracking-tight text-foreground">{words("Crafting your Reel")}</Text>
-              <Text className="text-center text-[13px] leading-[20px] text-muted">{words("Every beat, every clip, every moment.")}</Text>
+              <Text className="text-center text-[13px] leading-[20px] text-muted">{line || words("Every beat, every clip, every moment.")}</Text>
             </View>
           )}
           {shown.slice(-1).map((t) => <TaskCard key={t.id} t={t} />)}
