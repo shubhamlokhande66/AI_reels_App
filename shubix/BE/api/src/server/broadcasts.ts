@@ -84,7 +84,7 @@ export async function sendWelcome(uid: string, email: string) {
   const b = settings.businessName, title = `Welcome to ${b}`;
   const m = letterFor({ title, link: "/pricing", button: "See plans on shubix.in", body: `Your account is ready. Choose a song, add your clips or photos, and ${b} cuts them to the beat. Then change anything you like in the editor.
 
-You can make a Music Reel, a Talking Reel with captions or a Photo Reel on the Free plan.
+You can make a Beat Reel, a Talking Reel with captions or a Photo Reel on the Free plan.
 
 Paid plans add more tools and credits and remove the ads. See them and buy on shubix.in, then sign in with this email on the website or in the app: your plan works in both.` }, uid);
   return sendMail(email, title, m.text, m.html).catch(() => false);

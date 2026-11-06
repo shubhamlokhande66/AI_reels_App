@@ -497,7 +497,7 @@ export default function EditorScreen() {
       case "music": return (
         <View className="gap-2">
           <Text className="text-[13px] text-foreground">{p.audioName ?? words("No song yet")}</Text>
-          <Button full icon="music" title={words(p.audioUri ? "Change the song or its part" : "Choose song")} onPress={() => void chooseSong()} />
+          <Button full icon="music" title={words(p.audioUri ? "Change the song or its part" : "Add your song")} onPress={() => void chooseSong()} />
           <Button full variant="secondary" icon="plus" title={words("Add or change clips")} onPress={() => void addClips()} />
           <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
             <Label>Music track volume</Label>

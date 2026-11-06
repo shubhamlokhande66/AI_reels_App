@@ -50,9 +50,13 @@ function editCopyFailNote(src, facts){
 }
 function styleEdit(){
   // pros mostly hard-cut; special transitions go on hits, drops and section changes, never twice in a row
-  const HIT_TR = ['whip','iris','zoom','glitch','swipeup','spin','dropin','bars','pixelate'].filter(k => !EH.isLocked('tr', k));   // only what the plan opens
-  const CUT_TR = ['hard','wipe','hard','iris','slideleft','hard','bars','blur','hard','luma','doors'].filter(k => k === 'hard' || !EH.isLocked('tr', k));
-  const HIT_FX = ['punch','tilt','punch','shake'];
+  // every Reel (and New mix) its own order of transitions and effects; the same Reel edited again keeps its order
+  let h = ES.mixNo + 1; for(const c of EH.reelIdNow()) h = (h*31 + c.charCodeAt(0)) >>> 0;
+  const pick = () => { h = (h*16807 + 1) % 2147483647; return h / 2147483647; };
+  const mixed = a => { const o = [...a]; for(let i = o.length-1; i > 0; i--){ const j = Math.floor(pick()*(i+1)); [o[i], o[j]] = [o[j], o[i]]; } return o; };
+  const HIT_TR = mixed(['whip','iris','zoom','glitch','swipeup','spin','dropin','bars','pixelate'].filter(k => !EH.isLocked('tr', k)));   // only what the plan opens
+  const CUT_TR = mixed(['hard','wipe','hard','iris','slideleft','hard','bars','blur','hard','luma','doors'].filter(k => k === 'hard' || !EH.isLocked('tr', k)));
+  const HIT_FX = mixed(['punch','tilt','punch','shake']);
   let lastTr = '', lastFx = '', hk = 0, ck = 0, fk = 0, dk = 0;
   const beatsRel = (s) => ES.beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
   // restraint: fancy transitions are rationed (whip pans 1-2 per reel), the rest are clean hard cuts
@@ -60,7 +64,7 @@ function styleEdit(){
   const take = k => { if(budget[k]===undefined) return k; if(budget[k]>0){ budget[k]--; return k; } return 'hard'; };
   // beat shapes on a few longer shots and some drops: a different set and order with each seed / mix, never one twice in a row
   const SH_ROT = ['boxgrow','frame','grid','circle','strips','triple','heartbeat','starbeat'].filter(k => !EH.isLocked('fx', k)), SH_DROP = ['kaleido','strobe','triple','rgbpulse','mirror','vhs'].filter(k => !EH.isLocked('fx', k));
-  const shOff = ((ES.seed||1)*5 + ES.mixNo*3) % SH_ROT.length; let shLeft = Math.max(1, Math.round(2*per)), shK = 0, lastSh = '';
+  const shOff = Math.floor(pick()*SH_ROT.length); let shLeft = Math.max(1, Math.round(2*per)), shK = 0, lastSh = '';
   ES.plan.forEach((s,i)=>{
     const len = s.end - s.start, next = ES.plan[i+1], prev = ES.plan[i-1];
     let tr='hard', fx='none', sp=EH.SPEED.normal;

@@ -268,10 +268,21 @@ const same = (a: string, b: string) => a.length === b.length && crypto.timingSaf
 async function fulfil(orderId: string, paymentId: string, via: string) {
   const payments = await col("payments");
   const pay = await payments.findOneAndUpdate({ _id: orderId, status: "created" }, { $set: { status: "paid", paymentId, paidAt: new Date(), via } }, { returnDocument: "after" });
-  if (!pay) { if (!(await payments.findOne({ _id: orderId }))) throw new NotFoundError("Payment not found.", { code: "PAYMENT_NOT_FOUND" }); return; }
+  if (!pay) {
+    const had = await payments.findOne({ _id: orderId });
+    if (!had) throw new NotFoundError("Payment not found.", { code: "PAYMENT_NOT_FOUND" });
+    if (had.appliedAt) await sendReceipt(orderId); // the next report of this payment: a receipt that could not be sent goes now (at most once)
+    return;
+  }
   const item = pay.item as Doc, uid = String(pay.userId);
-  if (item.kind === "plan") await givePlan(uid, String(item.plan), String(item.period), orderId);
-  else await giveExtra(uid, Number(item.credits), `Top-up: ${item.label}`, orderId);
+  try {
+    if (item.kind === "plan") await givePlan(uid, String(item.plan), String(item.period), orderId);
+    else await giveExtra(uid, Number(item.credits), `Top-up: ${item.label}`, orderId);
+  } catch (e) { // not given: Razorpay's next try of the webhook applies it
+    await payments.updateOne({ _id: orderId }, { $set: { status: "created" }, $unset: { paymentId: "", paidAt: "", via: "" } });
+    throw e;
+  }
+  await payments.updateOne({ _id: orderId }, { $set: { appliedAt: new Date() } });
   // marketing, never in the way of the purchase itself: the coupon's use, an invite rewarded on a purchase, the affiliate's commission
   const coupon = (pay.price as Doc | undefined)?.coupon as Doc | null | undefined;
   await Promise.allSettled([

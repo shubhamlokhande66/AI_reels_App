@@ -9,7 +9,7 @@ import { STUDIO_TEXTS } from "./texts-studio";
  * in the studio (components/studio/textSwap.ts). */
 export const STUDIO_AREA = "Reel editor (Studio)";
 const STUDIO_PAGES: [id: string, name: string, sections: string[]][] = [
-  ["studio-create", "Create flow", ["Start", "Choose what to make", "Copy a Reel: the Reel to copy", "Song & clips", "Edit options", "Shubix AI at work", "Preview & export", "Exporting", "Your Reel is ready", "Messages while creating"]],
+  ["studio-create", "Create flow", ["Start", "Choose what to make", "Match a Reel's Style: the Reel to match", "Song & clips", "Edit options", "Shubix AI at work", "Preview & export", "Exporting", "Your Reel is ready", "Messages while creating"]],
   ["studio-tools", "Editor tools", ["Tool bar", "Style", "Shots", "Music", "Text", "Captions", "Look", "Background", "Layers", "Voice", "Motion", "Media", "Clip tools", "Player & saving"]],
   ["studio-chat", "Ask Shubix (chat)", ["The chat"]],
   ["studio-story", "Story Maker", ["Story Maker"]],

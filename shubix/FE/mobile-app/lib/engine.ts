@@ -173,7 +173,7 @@ export const engine = {
   /** the good footage in the clips read (whole seconds) and the Reel's length */
   footage: () => call<{ have: number; need: number }>("footage"),
   /** Shubix AI's price for this Reel and the balance */
-  aiPrice: () => call<{ on: boolean; cost: number; balance: number | null }>("aiPrice"),
+  aiPrice: () => call<{ on: boolean; cost: number; balance: number | null; paid: boolean }>("aiPrice"),
   /** whether this person's plan has Shubix AI */
   aiOn: () => call<{ on: boolean }>("aiState").then((r) => r.on),
   /** a new Reel: nothing of the Reel before it stays (song, clips, edit, AI, cards) */

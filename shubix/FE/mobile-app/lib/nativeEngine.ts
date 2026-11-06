@@ -253,12 +253,14 @@ export function createNativeEngine(io: NativeIo) {
     /** the good footage in the clips read, in whole seconds, and the Reel's length: enough clips? */
     footage: () => ({ have: Math.floor(host.ES.sources.reduce((t: number, c: Parameters<typeof goodSecs>[0]) => t + goodSecs(c), 0)), need: (host.ES.buf?.duration as number | undefined) ?? 0 }),
     /** Shubix AI's price for this Reel and the person's balance, read again each time: shown before Make Reel */
-    aiPrice: async () => { signedIn = true; await host.account().catch(() => false); return { on: !!host.ES.aiOn, cost: host.brain.aiCostOf("reel") as number, balance: host.brain.aiBal() as number | null }; },
+    aiPrice: async () => { signedIn = true; await host.account().catch(() => false); return { on: !!host.ES.aiOn, cost: host.brain.aiCostOf("reel") as number, balance: host.brain.aiBal() as number | null, paid: host.ES.planNow !== "free" }; },
     /** Make Reel was pressed with the price on the screen: that is the person's answer, so nothing is asked again */
     ai: async () => {
       if (!signedIn) { signedIn = true; await host.account().catch(() => false); }
       const g = stops, id = host.brain.reelIdNow(), cost = host.brain.aiCostOf("reel") as number, balance = host.brain.aiBal() as number | null;
-      if (cost && balance !== null && balance < cost) host.ES.lowAsked = id; else host.ES.aiReel = id;
+      const low = !!cost && balance !== null && balance < cost;
+      if (low && host.ES.planNow !== "free") return { went: false };   // a plan's Reel is made by Shubix AI only: it waits for credits
+      if (low) host.ES.lowAsked = id; else host.ES.aiReel = id;
       const went = await host.runAi();
       return { went: went && stops === g };
     },

@@ -32,9 +32,9 @@ type PlanDef = { id: string; name: string; monthly: number; credits: number; cre
 const DEFAULT_PRICING = {
   plans: [
     { id: "free", name: "Free", monthly: 0, credits: 0, creditsNote: "Reels made on your phone", tagline: "Edit Reels on your phone, free", highlight: false, ai: false, ads: true, hidden: false, freeChats: 0,
-      features: ["Unlimited Reels, edited on your phone (on the beat)", "Full editor: timeline, text, music, effects", "1080p export with a small watermark", "Ads", "No Shubix AI · Copy a Reel, Templates and Story Maker in Editor & Pro"] },
+      features: ["Unlimited Reels, edited on your phone (on the beat)", "Full editor: timeline, text, music, effects", "1080p export with a small watermark", "Ads", "No Shubix AI · Match a Reel's Style, Templates and Story Maker in Editor & Pro"] },
     { id: "creator", name: "Editor", monthly: 199, credits: 250, creditsNote: "every month · about 20 AI Reels", tagline: "Shubix AI edits your Reels", highlight: true, ai: true, ads: false, hidden: false, freeChats: 2,
-      features: ["Everything in Free, no ads, no watermark", "Shubix AI: about 20 AI Reels a month", "Ask Shubix: 2 free chat changes per Reel", "Copy a Reel, Templates, Story Maker", "All 👑 effects, Beauty, Stabilize, 60 fps"] },
+      features: ["Everything in Free, no ads, no watermark", "Shubix AI: about 20 AI Reels a month", "Ask Shubix: 2 free chat changes per Reel", "Match a Reel's Style, Templates, Story Maker", "All 👑 effects, Beauty, Stabilize, 60 fps"] },
     { id: "pro", name: "Pro", monthly: 499, credits: 720, creditsNote: "every month · about 60 AI Reels", tagline: "For daily posting and brands", highlight: false, ai: true, ads: false, hidden: false, freeChats: 5,
       features: ["Everything in Editor", "About 60 AI Reels a month", "Ask Shubix: 5 free chat changes per Reel", "Brand kit (logo, colours, fonts)", "4K export · Background, Layers, Voice, Motion"] },
     { id: "business", name: "Business", monthly: 2999, credits: 650, creditsNote: "every month", tagline: "For agencies and teams", highlight: false, ai: true, ads: false, hidden: true, freeChats: 5,
@@ -44,7 +44,7 @@ const DEFAULT_PRICING = {
   costs: { studio_ai: 10, studio_chat_small: 1, studio_chat_big: 2, studio_mix: 0, studio_captions: 0, studio_ref_look: 0, clip_reel: 1, version: 1, story_render: 2, ai_picture: 1, paid_picture: 3, preview: 0 } as Record<string, number>,
 };
 export const COST_LABELS: Record<string, string> = { studio_ai: "Shubix AI edits a Reel (once per Reel)", studio_chat_small: "Ask Shubix: a small change (a few shots)", studio_chat_big: "Ask Shubix: a change to the whole Reel",
-  studio_mix: "Change Reel: Shubix's other versions", studio_captions: "Captions from the song (per song)", studio_ref_look: "Copy a Reel's texts, stickers and captions (per Reel)",
+  studio_mix: "Change Reel: Shubix's other versions", studio_captions: "Captions from the song (per song)", studio_ref_look: "Match a Reel's Style: texts, stickers and captions (per Reel)",
   clip_reel: "Reel from your own clips (server)", version: "New version / re-render (server)", story_render: "Story Reel: narrate and render", ai_picture: "Shubix picture for a story scene", paid_picture: "Premium HD Shubix picture", preview: "Quick previews" };
 export type Pricing = typeof DEFAULT_PRICING;
 

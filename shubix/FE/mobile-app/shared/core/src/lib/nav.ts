@@ -15,10 +15,10 @@ export const GROUPS: NavGroup[] = [
       { href: "/", label: "Home", tk: "nav.home", icon: "home" },
       // the Create flow, one link per kind; a full page load on the website: it is cross-origin isolated
       // (next.config.ts) so its AI beat tracker can use several cores
-      { href: "/create/music", label: "Music Reel", tk: "nav.music", icon: "music", fullLoad: true },
+      { href: "/create/music", label: "Beat Reel", tk: "nav.music", icon: "music", fullLoad: true },
       { href: "/create/talking", label: "Talking Reel", tk: "nav.talking", icon: "mic", fullLoad: true },
       { href: "/create/photo", label: "Photo Reel", tk: "nav.photo", icon: "image", fullLoad: true },
-      { href: "/create/copy", label: "Copy a Reel", tk: "nav.copy", icon: "copy", fullLoad: true },
+      { href: "/create/copy", label: "Match a Reel's Style", tk: "nav.copy", icon: "copy", fullLoad: true },
       { href: "/create/story", label: "Story Maker", tk: "nav.story", icon: "book", fullLoad: true },
       { href: "/reels", label: "My Reels", tk: "nav.reels", icon: "reels" },
     ],
@@ -79,7 +79,7 @@ const PAGES: Record<string, PageMeta> = {
   "/create/edit": { title: "Your Reel", tk: "nav.yourReel", credits: true },
   "/editor": { title: "Reel Studio", credits: true },
   // the flow has its own back (FE/web-app/components/studio/flow.ts)
-  "/create/music": { title: "Music Reel", tk: "nav.music", credits: true },
+  "/create/music": { title: "Beat Reel", tk: "nav.music", credits: true },
   "/create/talking": { title: "Talking Reel", tk: "nav.talking", credits: true },
   "/create/photo": { title: "Photo Reel", tk: "nav.photo", credits: true },
   "/templates": { title: "Templates", tk: "nav.templates" },

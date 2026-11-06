@@ -373,7 +373,7 @@ async function decodeAnyAudio(file){
 // Choose song shows a spinner while the song is read and its beats found (a long song or a video takes seconds; the
 // Create flow hides the status line on phones, so the button itself says it is working)
 function songBusy(on){ const b = $('mpick'); b.classList.toggle('busy', on); b.setAttribute('aria-busy', String(on)); b.disabled = on;
-  b.querySelector('span').textContent = on ? 'Reading the song…' : 'Choose song'; $('rlist').classList.toggle('busy', on); }
+  b.querySelector('span').textContent = on ? 'Reading the song…' : 'Add your song'; $('rlist').classList.toggle('busy', on); }
 let lastSong = null, songCancelled = false, clipsStopped = false;   // what the popup's Cancel stopped: Next offers it again
 async function loadMusic(file, cached = null){
   remakeOk(); wipKeep(file); wipNote({ song: fileFp(file) }); lastSong = file; songCancelled = false;
@@ -1372,7 +1372,7 @@ async function rescueClip(src, dd){
 async function readVideo(src){
   if(src.removed) return;
   const card = src.card, dd = card.querySelector('.dd');
-  if(refReading){ dd.textContent = 'waiting for the Reel to copy…'; dd.dataset.st = 'read'; dd.dataset.p = '0'; await refDone(); if(src.removed) return; }
+  if(refReading){ dd.textContent = 'waiting for the Reel to match…'; dd.dataset.st = 'read'; dd.dataset.p = '0'; await refDone(); if(src.removed) return; }
   let stage = 'metadata', v = null;   // where reading stopped, for the report below
   // still reading after 2 minutes: reported too (a phone where it hangs instead of failing)
   const slow = setTimeout(() => { try{ window.__shubixReport && window.__shubixReport('clip', 'Clip still reading after 2 min at "' + stage + '" · ' + ((src.file && src.file.type) || 'no type') + ' · ' + dd.textContent, JSON.stringify({ size: src.file && src.file.size, dur: src.dur, w: src.w, h: src.h, webcodecs: typeof VideoDecoder !== 'undefined' })); }catch(x){} }, 120000);
@@ -1573,7 +1573,7 @@ async function buildTalk(){
   const parts = [];
   sources.forEach((src, si) => { if(!src.voice.has) return; for(const [a,b] of speechParts(src.voice, src.dur, talkPace)) parts.push({ si, a, b }); });
   const mute = sources.filter(s => !s.voice.has).length;
-  if(!parts.length){ root.dataset.nomake = 'No voice found: add a clip where you talk'; $('s3st').textContent = 'No voice found in these clips'; showMsg('We could not hear anyone talking in these clips. For a music Reel, choose "Music Reel" at the top.', true); return; }
+  if(!parts.length){ root.dataset.nomake = 'No voice found: add a clip where you talk'; $('s3st').textContent = 'No voice found in these clips'; showMsg('We could not hear anyone talking in these clips. For a Beat Reel, choose "Beat Reel" at the top.', true); return; }
   const sr = getCtx().sampleRate, T = parts.reduce((q,p)=>q + p.b - p.a, 0), N = Math.round(T*sr), voice = new Float32Array(N), act = new Float32Array(N);
   // the voice: the parts end to end, 8 ms fades at every join (no clicks), one loudness for every clip
   const fade = Math.round(0.008*sr); let o = 0;
@@ -1781,9 +1781,13 @@ function rampSpeed(len){ const sp = 0.45*len;   // fast, then slow into the next
   return {label:'Ramp 1.8×→0.6×', at:l=> l<sp ? 1.8 : 0.6, pos:l=> l<sp ? 1.8*l : 1.8*sp + 0.6*(l-sp)}; }
 function styleEdit(){
   // pros mostly hard-cut; special transitions go on hits, drops and section changes, never twice in a row
-  const HIT_TR = ['whip','iris','zoom','glitch','swipeup','spin','dropin','bars','pixelate'].filter(k => !isLocked('tr', k));   // only what the plan opens
-  const CUT_TR = ['hard','wipe','hard','iris','slideleft','hard','bars','blur','hard','luma','doors'].filter(k => k === 'hard' || !isLocked('tr', k));
-  const HIT_FX = ['punch','tilt','punch','shake'];
+  // every Reel (and New mix) its own order of transitions and effects; the same Reel edited again keeps its order
+  let h = mixNo + 1; for(const c of reelIdNow()) h = (h*31 + c.charCodeAt(0)) >>> 0;
+  const pick = () => { h = (h*16807 + 1) % 2147483647; return h / 2147483647; };
+  const mixed = a => { const o = [...a]; for(let i = o.length-1; i > 0; i--){ const j = Math.floor(pick()*(i+1)); [o[i], o[j]] = [o[j], o[i]]; } return o; };
+  const HIT_TR = mixed(['whip','iris','zoom','glitch','swipeup','spin','dropin','bars','pixelate'].filter(k => !isLocked('tr', k)));   // only what the plan opens
+  const CUT_TR = mixed(['hard','wipe','hard','iris','slideleft','hard','bars','blur','hard','luma','doors'].filter(k => k === 'hard' || !isLocked('tr', k)));
+  const HIT_FX = mixed(['punch','tilt','punch','shake']);
   let lastTr = '', lastFx = '', hk = 0, ck = 0, fk = 0, dk = 0;
   const beatsRel = (s) => beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
   // restraint: fancy transitions are rationed (whip pans 1-2 per reel), the rest are clean hard cuts
@@ -1791,7 +1795,7 @@ function styleEdit(){
   const take = k => { if(budget[k]===undefined) return k; if(budget[k]>0){ budget[k]--; return k; } return 'hard'; };
   // beat shapes on a few longer shots and some drops: a different set and order with each seed / mix, never one twice in a row
   const SH_ROT = ['boxgrow','frame','grid','circle','strips','triple','heartbeat','starbeat'].filter(k => !isLocked('fx', k)), SH_DROP = ['kaleido','strobe','triple','rgbpulse','mirror','vhs'].filter(k => !isLocked('fx', k));
-  const shOff = ((seed||1)*5 + mixNo*3) % SH_ROT.length; let shLeft = Math.max(1, Math.round(2*per)), shK = 0, lastSh = '';
+  const shOff = Math.floor(pick()*SH_ROT.length); let shLeft = Math.max(1, Math.round(2*per)), shK = 0, lastSh = '';
   plan.forEach((s,i)=>{
     const len = s.end - s.start, next = plan[i+1], prev = plan[i-1];
     let tr='hard', fx='none', sp=SPEED.normal;
@@ -1985,7 +1989,7 @@ function aiNeed(on, low){
   $('aiaskgo').textContent = low ? 'Top up' : 'Make it with Shubix AI'; $('aiaskgo').dataset.low = low ? '1' : '';
 }
 $('aiaskgo').addEventListener('click', async () => {
-  if($('aiaskgo').dataset.low){ if(!IN_APP) location.assign('/pricing'); return; }
+  if($('aiaskgo').dataset.low){ if(!IN_APP) location.assign('/pricing#topup'); return; }
   if(await aiGate(true)) aiRun();
 }, SIG);
 function aiGate(again = false){
@@ -1996,16 +2000,18 @@ function aiGate(again = false){
   gateP = (async () => {
     const cost = aiCostOf('reel'), bal = aiBal();
     if(cost && bal !== null && bal < cost){
-      // too few credits: the Reel is still made, by the phone's own smart edit (like the Free plan), never held back;
-      // the top-up is offered once per Reel (not again on every Next)
+      // too few credits, on a plan: only a top-up; the Reel waits for it (no free edit), Generate asks again
+      if(!IN_APP && planNow !== 'free'){ aiNeed(true, true); gateNo = id; aiStat('Your Reel waits for credits · Shubix AI needs ' + creditWord(cost) + ' (you have ' + creditWord(bal) + ')');
+        if(await askCredits({ title: 'Not enough credits', text: 'Shubix AI needs ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '.', bal, ok: 'Top up' }) === true) location.assign('/pricing#topup');
+        return false; }
+      // without a plan: the Reel is still made, by the phone's own smart edit, never held back; the plans are offered once per Reel (not again on every Next)
       aiNeed(false); gateNo = id;
       aiStat('Free edit · Shubix AI needs ' + creditWord(cost) + ' (you have ' + creditWord(bal) + ')');
       if(lowAsked !== id){ lowAsked = id;
         if(IN_APP) await askCredits({ title: 'Not enough credits for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit.', bal, ok: 'OK' });
-        else { const paid = planNow !== 'free';   // a plan: more credits for it; no plan: the plans
-          const go = await askCredits({ title: 'Not enough credits', text: 'Shubix AI needs ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '.', bal, ok: paid ? 'Top up' : 'See plans', no: 'Free edit' });
-          if(go === true) location.assign(paid ? '/pricing#topup' : '/pricing?feature=ai');
-          // Top up, See plans or the popup closed: nothing is made; Generate asks again
+        else { const go = await askCredits({ title: 'Not enough credits', text: 'Shubix AI needs ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '.', bal, ok: 'See plans', no: 'Free edit' });
+          if(go === true) location.assign('/pricing?feature=ai');
+          // See plans or the popup closed: nothing is made; Generate asks again
           if(go !== false){ lowAsked = ''; gateNo = ''; } } }
       return false; }
     // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
@@ -6101,7 +6107,7 @@ const MODE_HELP = {
   ai: 'Shubix AI: Shubix watches your clips and listens to the song, then decides every cut, transition, effect, speed and camera move.',
   smooth: 'Smooth: fewer, longer shots on the strong beats, soft camera moves, no flashy effects.',
   fast: 'Fast: a cut on every beat, a transition on every cut, punches and speed changes on the hits.',
-  copy: 'Copy a Reel: its pace, transitions and shapes, camera moves, speed and colours, on this song and your clips. With Shubix on, it copies what the Reel does on each kind of music moment.',
+  copy: "Match a Reel's Style: its pace, transitions and shapes, camera moves, speed and colours, on this song and your clips. With Shubix on, it follows what the Reel does on each kind of music moment.",
 };
 // a learned style used for a creator (by their template's kind, styleForTemplate) changes only the edit: the creator never
 // sees it, the mode they had stays pressed. The administrator sees it as Copy a Reel.

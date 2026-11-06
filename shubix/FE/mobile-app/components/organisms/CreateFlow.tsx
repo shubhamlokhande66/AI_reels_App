@@ -26,10 +26,10 @@ export type FlowKind = "music" | "talking" | "photo" | "copy";
 export type FlowStep = "intro" | "choose" | "adjust" | "clips" | "analyse";
 
 export const KINDS: Record<FlowKind, { title: string; sub: string; intro: string; checks: string[]; icon: IconName }> = {
-  music: { title: "Music Reel", sub: "Turn your clips into a stunning Reel with music, beats and Shubix edits.", intro: "Create a Music Reel", checks: ["Pick a song", "Add your videos or photos", "Shubix edits on the beat", "Preview, make changes and export"], icon: "music" },
+  music: { title: "Beat Reel", sub: "Turn your clips into a stunning Reel with beats and Shubix edits.", intro: "Create a Beat Reel", checks: ["Add your own song", "Add your videos or photos", "Shubix edits on the beat", "Preview, make changes and export"], icon: "music" },
   talking: { title: "Talking Reel", sub: "Your talking video, pauses cut, captions added, music under the voice.", intro: "Create a Talking Reel", checks: ["Add your talking video", "Pauses cut, captions added", "Soft music under the voice", "Preview, make changes and export"], icon: "mic" },
-  photo: { title: "Photo Reel", sub: "Your photos, moving to the music, cut on the beat.", intro: "Create a Photo Reel", checks: ["Pick a song", "Add your photos", "Shubix moves them on the beat", "Preview, make changes and export"], icon: "image" },
-  copy: { title: "Copy a Reel", sub: "Match a Reel you like: its cuts, texts and look on your clips.", intro: "Copy a Reel", checks: ["Pick the Reel to copy (its song comes with it)", "Add your clips", "Shubix copies its cuts and look", "Preview, make changes and export"], icon: "copy" },
+  photo: { title: "Photo Reel", sub: "Your photos, moving to the music, cut on the beat.", intro: "Create a Photo Reel", checks: ["Add your own song", "Add your photos", "Shubix moves them on the beat", "Preview, make changes and export"], icon: "image" },
+  copy: { title: "Match a Reel's Style", sub: "Match a Reel you like: its cuts, texts and look on your clips.", intro: "Match a Reel's Style", checks: ["Pick the Reel to match (its song comes with it)", "Add your clips", "Shubix matches its cuts and look", "Preview, make changes and export"], icon: "copy" },
 };
 export const ORDER: Record<FlowKind, FlowStep[]> = { music: ["intro", "choose", "clips", "analyse"], photo: ["intro", "choose", "clips", "analyse"], copy: ["intro", "choose", "clips", "analyse"], talking: ["intro", "clips", "analyse"] };
 export const AI_STEPS: [IconName, string][] = [["search", "Detecting scenes and best moments"], ["music", "Matching with music beats"], ["wand", "Auto transitions and effects"], ["palette", "Colour and quality enhancement"]];
@@ -97,13 +97,13 @@ export function FlowChoose({ kind, song, recent, busy, onPick, onPickReel, onRec
         <FlowCard>
           <View className="flex-row items-center gap-3">
             <View className="h-11 w-11 items-center justify-center rounded-xl bg-accent/15"><Icon name="copy" size={20} color="accent" /></View>
-            <View className="min-w-0 flex-1"><Text className="text-[15px] font-semibold text-foreground">{words("Reel to copy")}</Text><Text className="text-[12.5px] leading-[18px] text-muted">{words("Pick a Reel you like: its song, cuts, transitions and look go on your clips")}</Text></View>
+            <View className="min-w-0 flex-1"><Text className="text-[15px] font-semibold text-foreground">{words("Reel to match")}</Text><Text className="text-[12.5px] leading-[18px] text-muted">{words("Pick a Reel you like: its song, cuts, transitions and look go on your clips")}</Text></View>
           </View>
           <Button full size="lg" icon="video" loading={busy} title={words("Pick the Reel")} onPress={onPickReel} />
         </FlowCard>
       )}
       <FlowCard>
-        <Button full size="lg" icon="music" loading={busy} title={words("Choose song")} onPress={onPick} />
+        <Button full size="lg" icon="music" loading={busy} title={words("Add your song")} onPress={onPick} />
         <Text className="text-[12.5px] leading-[18px] text-muted">{words(kind === "copy" ? "Different song? Choose it here" : "MP3, M4A, WAV or any video's sound (iPhone: from Files or Photos)")}</Text>
         {recent.length > 0 && (
           <View className="gap-2.5">

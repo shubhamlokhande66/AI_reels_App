@@ -20,6 +20,12 @@ function fake(answer: unknown) {
   return { p: p as unknown as ManagedProvider, calls };
 }
 
+it("a request without a Reel id gets its own, so it is charged", () => {
+  const { reelId, ...none } = req(3);
+  expect(reelId).toMatch(/^[\w-]{6,64}$/);
+  expect(DirectIn.parse(none).reelId).not.toBe(reelId);
+});
+
 describe("vision shot cache fingerprint", () => {
   const provider = (model = "text", visionModel = "vision") => ({ name: "test-provider", model, visionModel }) as ManagedProvider;
   const clip = (extra = {}) => ({ id: "clip-1", name: "dance", frames: [{ t: 1.25, image: "/9j/4AAQSkZJRgABAQAAAQABAAD/" }], ...extra });
