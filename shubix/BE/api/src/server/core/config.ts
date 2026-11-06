@@ -81,7 +81,7 @@ export const settings = {
   supportEmail: env("SUPPORT_EMAIL", ""),
   supportPhone: env("SUPPORT_PHONE", ""),
   businessAddress: env("BUSINESS_ADDRESS", ""),
-  legalUpdated: env("LEGAL_UPDATED", "8 October 2026"),
+  legalUpdated: env("LEGAL_UPDATED", "6 November 2026"),
   smtpHost: env("SMTP_HOST", ""),
   smtpPort: num("SMTP_PORT", 587),
   smtpUser: env("SMTP_USER", ""),

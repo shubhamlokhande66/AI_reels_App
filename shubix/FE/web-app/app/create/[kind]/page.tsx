@@ -9,7 +9,7 @@ import { TemplateGate } from "@/components/organisms/TemplateGate";
  *   (components/studio/flow.ts); Copy a Reel starts by picking the Reel to copy
  * - /create/story: Story Maker needs a voice, and the website has none now (docs/third-party-licenses.md): old links go to Music Reel
  * - /create/edit: legacy saved Reel / template links redirect to /editor with their original query parameters */
-const KINDS = { music: "Music Reel", talking: "Talking Reel", photo: "Photo Reel", copy: "Copy a Reel", story: "Story Maker", edit: "Your Reel" } as const;
+const KINDS = { music: "Beat Reel", talking: "Talking Reel", photo: "Photo Reel", copy: "Match a Reel's Style", story: "Story Maker", edit: "Your Reel" } as const;
 type Kind = keyof typeof KINDS;
 const FLOW = new Set<Kind>(["music", "talking", "photo", "copy"]); // drawn in the Create flow from the first paint
 

@@ -33,11 +33,25 @@ vi.mock("@/server/core/db", () => ({ mainDb: async () => ({ collection: coll }),
 vi.mock("@/server/core/auth", () => ({ currentUser: () => st.user, AuthRequired: Error }));
 vi.mock("@/server/ai", () => ({ getProvider: () => ({}) }));
 vi.mock("@/server/ai/config", () => ({ effective: () => ({}) }));
-vi.mock("@/server/core/config", () => ({ settings: { billingEnabled: true, authEnabled: true, razorpayKeyId: "", razorpayKeySecret: "", adminEmails: "" }, env: () => "" }));
+vi.mock("@/server/core/config", () => ({ settings: { billingEnabled: true, authEnabled: true, razorpayKeyId: "", razorpayKeySecret: "", razorpayWebhookSecret: "whsec", businessName: "Shubix", adminEmails: "" }, env: () => "" }));
 
 beforeEach(() => { st.cols.clear(); st.user = "u1"; });
 
 describe("plans and Shubix AI credits", () => {
+  it("a paid order whose plan could not be given goes back, and the webhook's next try gives it, once", async () => {
+    const { webhook } = await import("../../src/server/credits"), { createHmac } = await import("node:crypto");
+    const body = JSON.stringify({ event: "order.paid", payload: { payment: { entity: { id: "pay_1", order_id: "order_1" } } } });
+    const hit = () => webhook(new Request("http://x/", { method: "POST", body, headers: { "x-razorpay-signature": createHmac("sha256", "whsec").update(body).digest("hex") } }));
+    const order = { _id: "order_1", userId: "u1", status: "created", amount: 19900, item: { kind: "plan", plan: "gone", period: "monthly", label: "Editor plan" } };
+    st.cols.set("payments", [order]);
+    await expect(hit()).rejects.toThrow();
+    expect(order.status).toBe("created");
+    order.item.plan = "creator";
+    await hit(); await hit();
+    expect(order.status).toBe("paid");
+    expect(st.cols.get("wallets")?.[0]).toMatchObject({ plan: "creator", monthly: 250 });
+    expect(st.cols.get("credit_ledger")?.filter((e) => e.ref === "order_1")).toHaveLength(1);
+  });
   it("has Free without AI, Editor and Pro with it, and an AI Reel at 10 credits", async () => {
     const { getPricing } = await import("../../src/server/workspace");
     const p = await getPricing();

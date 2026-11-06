@@ -217,12 +217,12 @@ function CreateFlowScreen() {
       if (v === 0) router.push("/credits");
       if (v !== 1) return;
     }
-    // too few credits: said at once, before any waiting; the Reel can still be made by the phone's own edit
+    // too few credits: said at once, before any waiting; without a plan the Reel can still be made by the phone's own edit, on a plan it waits for credits
     const p = engineOn && song ? await engine.aiPrice().catch(() => null) : null;
     if (p?.on && p.cost && p.balance !== null && p.balance < p.cost) {
-      const v = await askAction({ title: words("Not enough credits"), body: words("Shubix AI needs {n} credits and you have {b}.", { n: p.cost, b: p.balance }), ok: words("Add more credits"), cancel: words("Free edit") });
+      const v = await askAction({ title: words("Not enough credits"), body: words("Shubix AI needs {n} credits and you have {b}.", { n: p.cost, b: p.balance }), ok: words("Add more credits"), cancel: words(p.paid ? "Go back" : "Free edit") });
       if (v === 0) router.push("/credits");
-      if (v !== 1) return;
+      if (v !== 1 || p.paid) return;
     } else if (p?.on) tasks.note(p.cost && p.balance !== null ? words("Shubix AI: {n} credits · {b} left after", { n: p.cost, b: p.balance - p.cost }) : p.cost ? words("Shubix AI: {n} credits", { n: p.cost }) : words("Shubix AI: included in your plan"));
     // too few clips can be said now: their lengths are known (photos fit any length)
     if (engineOn && song && media.every((m) => m.type !== "image" && m.duration)) {
@@ -317,13 +317,13 @@ function CreateFlowScreen() {
   // the bottom button: its words say what it waits for while it is off (the website's flow.ts)
   const needSong = kind !== "talking";
   const button = {
-    intro: { title: words(kind === "copy" ? "Pick the Reel to copy" : "Let's Start"), on: true, press: () => go(order[1]) },
-    choose: { title: words(!song ? "Choose a song to continue" : "Next"), on: !!song, press: () => go("clips") },
+    intro: { title: words(kind === "copy" ? "Pick the Reel to match" : "Let's Start"), on: true, press: () => go(order[1]) },
+    choose: { title: words(!song ? "Add your song to continue" : "Next"), on: !!song, press: () => go("clips") },
     adjust: { title: words("Done"), on: true, press: () => go("clips") },
-    clips: { title: words(!media.length ? (photos ? "Add your photos to continue" : "Add your clips to continue") : needSong && !song ? "Choose a song first" : "Make Reel"), on: !!media.length && (!needSong || !!song), press: () => void make() },
+    clips: { title: words(!media.length ? (photos ? "Add your photos to continue" : "Add your clips to continue") : needSong && !song ? "Add your song first" : "Make Reel"), on: !!media.length && (!needSong || !!song), press: () => void make() },
     analyse: null,
   }[step];
-  const title = { intro: "", choose: kind === "copy" ? words("Music") : words("Choose Music"), adjust: words("Adjust Music"), clips: words(photos ? "Add Your Photos" : "Add Your Clips"), analyse: "" }[step];
+  const title = { intro: "", choose: kind === "copy" ? words("Music") : words("Add your song"), adjust: words("Adjust Music"), clips: words(photos ? "Add Your Photos" : "Add Your Clips"), analyse: "" }[step];
   return (
     <View className="flex-1 bg-background">
       <FlowHead title={title} at={{ intro: 1, choose: 1, adjust: 1, clips: 2, analyse: 3 }[step]} onBack={back} onSkip={step === "intro" ? () => go(order[1]) : undefined} />

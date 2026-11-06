@@ -135,7 +135,7 @@ export const STUDIO_HTML = `
   <div class="invisible grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 max-lg:sticky max-lg:top-0 max-lg:z-20 max-lg:-mx-4 max-lg:-mt-4 max-lg:grid-cols-[40px_minmax(0,1fr)_auto] max-lg:gap-3 max-lg:bg-background max-lg:px-4 max-lg:pt-[max(12px,env(safe-area-inset-top))] max-lg:pb-3" id="fhead" hidden>
     <button type="button" class="${Button.iconBordered} size-11 max-lg:size-10" id="fback" aria-label="Back">${IC.back}</button>
     <b class="peer hidden truncate font-display text-[17px] font-semibold tracking-[-.01em] max-lg:block max-lg:empty:hidden" id="fptitle"></b>
-    <div class="max-lg:hidden"><h1 class="font-display text-[clamp(21px,2vw,24px)] leading-[1.15] font-semibold tracking-[-.015em]" id="ftitle">Music Reel</h1><p class="mt-1 text-[13px] text-muted" id="fsub">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p></div>
+    <div class="max-lg:hidden"><h1 class="font-display text-[clamp(21px,2vw,24px)] leading-[1.15] font-semibold tracking-[-.015em]" id="ftitle">Beat Reel</h1><p class="mt-1 text-[13px] text-muted" id="fsub">Turn your clips into a stunning Reel with beats and Shubix edits.</p></div>
     <ol class="flex items-start max-lg:col-span-3 max-lg:row-start-2 max-lg:w-full max-lg:max-w-[190px] max-lg:min-w-0 max-lg:items-center max-lg:justify-self-center max-lg:peer-empty:col-span-1 max-lg:peer-empty:col-start-2 max-lg:peer-empty:row-start-1" id="fsteps" aria-label="Steps">
       <li class="${stepItem}" data-f="1"><i class="${stepDot}">1</i><span class="max-lg:hidden">Music</span></li><li class="${stepItem}" data-f="2"><i class="${stepDot}">2</i><span class="max-lg:hidden">Clips</span></li><li class="${stepItem}" data-f="3"><i class="${stepDot}">3</i><span class="max-lg:hidden">Shubix Edit</span></li><li class="${stepItem}" data-f="4"><i class="${stepDot}">4</i><span class="max-lg:hidden">Preview &amp; Export</span></li>
     </ol>
@@ -162,9 +162,9 @@ export const STUDIO_HTML = `
   </form>
   <section class="animate-none invisible grid content-start justify-items-center gap-3 px-1 pt-2 pb-1 text-center lg:hidden" id="fintro" aria-labelledby="fintroh" hidden>
     <span class="grid size-[76px] place-items-center rounded-[22px] bg-gold shadow-[0_0_0_10px_color-mix(in_srgb,var(--accent)_12%,transparent),0_18px_40px_-16px_var(--brand-glow)] [&>svg]:size-12! [&>svg]:bg-transparent! [&>svg]:p-0! [&>svg]:text-white" id="fintroic">${IC.music}</span>
-    <h2 class="mt-1.5 font-display text-[27px] font-semibold tracking-[-.02em]" id="fintroh">Create a Music Reel</h2>
-    <p class="max-w-[30ch] text-[14.5px] text-muted" id="fintrop">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p>
-    <ul class="mt-3.5 mb-1.5 grid gap-3 justify-self-stretch px-1.5 text-left" id="fintrol"><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Pick a song</li><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Add your videos or photos</li><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Shubix edits on the beat</li><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Preview, make changes and export</li></ul>
+    <h2 class="mt-1.5 font-display text-[27px] font-semibold tracking-[-.02em]" id="fintroh">Create a Beat Reel</h2>
+    <p class="max-w-[30ch] text-[14.5px] text-muted" id="fintrop">Turn your clips into a stunning Reel with beats and Shubix edits.</p>
+    <ul class="mt-3.5 mb-1.5 grid gap-3 justify-self-stretch px-1.5 text-left" id="fintrol"><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Add your own song</li><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Add your videos or photos</li><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Shubix edits on the beat</li><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Preview, make changes and export</li></ul>
     <button type="button" class="${phoneBottomButton}" data-fnext="1"><span id="fgot">Let's Start</span> ${IC.arrow}</button>
     <button type="button" class="${Button.ghost} mt-2 w-full" id="fsample" hidden>No clips with you? Try it with our sample clips</button>
   </section>
@@ -176,11 +176,11 @@ export const STUDIO_HTML = `
     <div class="makegrid">
       <button type="button" class="kindx storycard" id="storykind">${IC.text}<span><b>Story → Reel</b><small>Write it; Shubix narrates it, shows it scene by scene, adds captions</small></span></button>
       <div class="kinds" id="kind" role="group" aria-label="Kind of Reel">
-        <button data-k="music" aria-pressed="false">${IC.music}<span><b>Music Reel</b><small>Cuts land on every beat</small></span></button>
+        <button data-k="music" aria-pressed="false">${IC.music}<span><b>Beat Reel</b><small>Cuts land on every beat</small></span></button>
         <button data-k="talk" aria-pressed="false">${IC.voice}<span><b>Talking Reel</b><small>Pauses cut, captions added</small></span></button>
       </div>
       <button type="button" class="kindx" id="photokind" aria-pressed="false">${IC.image}<span><b>Photos to Reel</b><small>Your photos, moving to the music</small></span></button>
-      <button type="button" class="kindx copycard" id="copycard" aria-pressed="false">${IC.copy}<span><b>Copy a Reel</b><small>Match a Reel you like: its cuts and look</small></span></button>
+      <button type="button" class="kindx copycard" id="copycard" aria-pressed="false">${IC.copy}<span><b>Match a Reel's Style</b><small>Match a Reel you like: its cuts and look</small></span></button>
     </div>
   <div class="tplrow">
     <span class="label">Or start from a template</span>
@@ -197,20 +197,20 @@ export const STUDIO_HTML = `
   <div class="fmain">
   <!-- Copy a Reel (/create/copy): the Reel being copied, at the top; its song is the Reel's song unless the creator
        chooses another (flow.ts) -->
-  <section class="fref" id="fref" aria-label="Reel to copy">
+  <section class="fref" id="fref" aria-label="Reel to match">
     <span class="fsongic">${IC.copy}</span>
-    <span class="fsongt"><b>Reel to copy</b><small id="frefst">Pick a Reel you like: its song, cuts, transitions and look go on your clips</small>
+    <span class="fsongt"><b>Reel to match</b><small id="frefst">Pick a Reel you like: its song, cuts, transitions and look go on your clips</small>
       <button type="button" class="justify-self-start text-[13px] font-semibold text-accent underline" id="frefother">Different song? Choose it here</button></span>
     <span class="frefbtns"><button type="button" class="${Button.primary}" id="frefpick">Pick the Reel</button><button type="button" class="${Button.ghost}" id="frefsong" hidden>Use its song</button></span>
   </section>
   <!-- phones: the solid strip behind the bottom button, so the list never shows under or around it -->
   <div aria-hidden="true" class="fixed inset-x-0 bottom-0 z-20 hidden h-[calc(72px+env(safe-area-inset-bottom))] border-t border-border bg-background max-lg:in-[[data-fstep]:not([data-fstep=analyse])]:block"></div>
   <section class="${flowCard}" id="s1">
-    <button type="button" class="sh ${stepHead} max-lg:hidden" aria-expanded="true"><span class="${stepNumber}">1</span><span class="${stepText}"><h2 class="${stepTitle}">Choose Music</h2><small class="fsh ${stepNote}">Pick a song or sound for your Reel</small></span><span class="hidden" id="s1st">Choose a song to start</span></button>
+    <button type="button" class="sh ${stepHead} max-lg:hidden" aria-expanded="true"><span class="${stepNumber}">1</span><span class="${stepText}"><h2 class="${stepTitle}">Add your song</h2><small class="fsh ${stepNote}">Add a song or sound from your device</small></span><span class="hidden" id="s1st">Choose a song to start</span></button>
     <div class="grid min-w-0 gap-3.5">
     <div class="fchoose">
     <div class="row fpickrow">
-      <button class="${Button.primary}" id="mpick">${IC.music}<span>Choose song</span></button>
+      <button class="${Button.primary}" id="mpick">${IC.music}<span>Add your song</span></button>
       <input id="mfile" type="file" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav,.mov,.mp4" hidden>
       <span class="fname" id="mname">MP3, M4A, WAV or any video's sound (iPhone: from Files or Photos)</span>
       <button class="${Button.ghost}" id="skipmusic" type="button" hidden>Continue without music</button>
@@ -343,7 +343,7 @@ export const STUDIO_HTML = `
           <div class="previewStage pv">
             <div class="videoFrame pvbox">
               <canvas id="out" width="1080" height="1920"></canvas>
-              <div class="refwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Reading the Reel to copy</b><small id="refwaitp">its cuts, flickers and transitions…</small></div>
+              <div class="refwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Reading the Reel to match</b><small id="refwaitp">its cuts, flickers and transitions…</small></div>
               <div class="aiask" id="aiask" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b id="aiaskt">Your Reel is waiting for Shubix AI</b><small id="aiaskp"></small><button type="button" class="${Button.primary}" id="aiaskgo">Make it with Shubix AI</button></div>
               <div class="aiwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Shubix is making your Reel</b><small>Watching your clips and listening to the song…</small></div>
               <button type="button" class="previewPlay playov" id="playov" aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button>
@@ -437,7 +437,7 @@ export const STUDIO_HTML = `
               <button data-m="auto" aria-pressed="true">Auto</button>
               <button data-m="smooth" aria-pressed="false">Smooth</button>
               <button data-m="fast" aria-pressed="false">Fast</button>
-              <button data-m="copy" aria-pressed="false" title="Upload a Reel you like: its pace, transitions, effects and colours are copied onto your clips">Copy a Reel</button>
+              <button data-m="copy" aria-pressed="false" title="Upload a Reel you like: its pace, transitions, effects and colours are matched on your clips">Match a Reel's Style</button>
             </div>
             <input id="reffile" type="file" accept="video/*,.mov,.mp4,.m4v" hidden>
             <div class="refbox" id="refbox" hidden><span class="fname" id="refinfo"></span> <button class="${Button.secondary}" id="refchange" type="button">Change Reel</button><span class="fname refmatch" id="refmatch" hidden></span>

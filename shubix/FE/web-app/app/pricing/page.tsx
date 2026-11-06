@@ -260,6 +260,7 @@ export default function PricingPage() {
         <Icon name="lock" size={15} />
         {text(p.paymentsOpen ? "pricing.secure" : "pricing.soon")}
       </p>
+      <p className="m-0 text-center text-[12.5px] text-muted">{text("home.softwareNote")}</p>
     </div>
   );
 }

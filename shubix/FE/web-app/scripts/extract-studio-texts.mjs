@@ -29,7 +29,7 @@ const looksLikeUi = (s) => {
 const CREATE = "Create flow", TOOLS = "Editor tools", CHAT = "Ask Shubix (chat)", STORY = "Story Maker", NAMES = "Names: effects, filters & fonts", MSG = "Editor messages";
 // markup.ts: its screens and panels, by their id / data-panel (the nearest one before a text wins)
 const MARKUP = [
-  [/id="fintro"/g, CREATE, "Start"], [/id="s0"/g, CREATE, "Choose what to make"], [/id="fref"/g, CREATE, "Copy a Reel: the Reel to copy"],
+  [/id="fintro"/g, CREATE, "Start"], [/id="s0"/g, CREATE, "Choose what to make"], [/id="fref"/g, CREATE, "Match a Reel's Style: the Reel to match"],
   [/id="s1"/g, CREATE, "Song & clips"], [/id="s2"/g, CREATE, "Edit options"], [/id="fai"/g, CREATE, "Shubix AI at work"], [/id="fan"/g, CREATE, "Shubix AI at work"],
   [/id="s3"/g, CREATE, "Preview & export"], [/id="playov"/g, TOOLS, "Player & saving"], [/id="panels"/g, TOOLS, "Tool bar"],
   [/data-panel="media"/g, TOOLS, "Media"], [/data-panel="style"/g, TOOLS, "Style"], [/data-panel="music"/g, TOOLS, "Music"], [/data-panel="text"/g, TOOLS, "Text"],

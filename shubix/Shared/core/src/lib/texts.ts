@@ -30,33 +30,40 @@ const LEGAL_TERMS = `These terms apply when you use {name} (“we”, “the ser
 - You allow us to process your content only to provide the service (analyse it, edit it, store it for the time shown in the app, and post it where you ask us to).
 - Uploaded files are deleted automatically after a period shown in the app. Download your Reels before then.
 
-## 3. AI features
+## 3. Music and copyright
+- Shubix is video editing software. We do not sell, license or distribute music, and the service has no music library.
+- You choose the music for your Reel from your own files. You are responsible for having the rights to use it, including where you post the Reel.
+- Buying a plan or credits pays for editing tools and AI features only. It gives you no rights to any song or video.
+- Match a Reel's Style uses a reference video that you provide. If you use its song or other content, you must have the rights to do so.
+- If you believe content on Shubix infringes your rights, write to {contact} with the details and a link or file name. We will review it and remove infringing content where needed. We may close the accounts of repeat infringers.
+
+## 4. AI features
 - Some features use AI services (for example to plan scenes, write captions, make a voice or a picture). AI output can be wrong or imperfect: check your Reel before you post it.
 - Pictures from public-domain artworks are credited in the app. AI pictures and voices may be used for your Reels freely.
 
-## 4. Plans, credits and payments
+## 5. Plans, credits and payments
 - Prices are in Indian rupees and include GST. Payments are processed by Razorpay.
 - Paid plans are prepaid for one month or one year and do **not** renew automatically. Plan credits refresh every 30 days during the paid period and do not carry over; starter and top-up credits do not expire.
 - Credits are used when a Reel is made. If a Reel fails, its credits are returned automatically.
 - All purchases are final and **non-refundable**; see our [Refund & Cancellation Policy](/refunds).
 
-## 5. Invites, sending credits, coupons and affiliates
+## 6. Invites, sending credits, coupons and affiliates
 - **Invites:** when a friend joins with your link, you and your friend get the credits shown on the Invite & earn page, at the step shown there (for example when they verify their email, or make a first purchase). There is a monthly limit, and the amounts and rules can change for new invites.
 - **Sending credits:** credits you send to another user by username are moved at once and cannot be taken back. Only top-up and gift credits can be sent, not a plan's monthly credits.
 - **Coupons and offers:** each has its own rules (dates, plans, uses). They have no cash value and cannot be exchanged for money.
 - **Affiliates:** an approved affiliate earns the commission shown on their dashboard, only on successful payments by the people who joined with their link, for the period shown. Commission is paid by UPI or bank transfer once it reaches the payout amount; you must give correct payout details and are responsible for your own taxes on it.
 - **No abuse:** inviting yourself, fake or duplicate accounts, spam, or misleading promotion are not allowed. We may hold or cancel the credits or commission they earned, and pause or close the accounts involved.
 
-## 6. Fair use
+## 7. Fair use
 Do not try to break, overload or copy the service, share accounts, or use it to make spam or misleading content. We may limit or close accounts that do.
 
-## 7. Availability and liability
+## 8. Availability and liability
 We work to keep the service running well but cannot promise it is always available or error-free. To the extent the law allows, our liability for any claim is limited to the amount you paid us in the 3 months before it.
 
-## 8. Changes
+## 9. Changes
 We may update these terms. If a change matters, we will tell you in the app or by email before it applies.
 
-## 9. Law and contact
+## 10. Law and contact
 These terms are governed by the laws of India. Questions: {contact}. {business}.`;
 
 const LEGAL_PRIVACY = `This policy explains what {name} collects, why, and the choices you have. We collect as little as we can and keep it only as long as needed.
@@ -123,13 +130,13 @@ If you were charged twice, or a payment did not add your plan or credits, write 
 const LEGAL_ABOUT = `{name} is a Reels video studio for creators, small businesses and anyone who wants short videos without learning a complicated editor. You bring the clips, the photos and the song; {name} finds the beats and cuts everything to the music.
 
 ## What you can make
-- **Music Reel:** choose a song and your clips, and the cuts land on the beat.
+- **Beat Reel:** add your song and clips, and the cuts land on the beat.
 - **Talking Reel:** turn a video of someone speaking into a Reel with captions.
 - **Photo Reel:** make a moving Reel from your photos.
-- **Copy a Reel:** start from the rhythm and style of a Reel you like.
+- **Match a Reel's Style:** start from the rhythm and style of a Reel you like.
 
 ## How it works
-Pick a sound, add your clips, and let {name} make the first edit. Then change anything you like in the editor: clips, text, filters, effects and sound. Your video is made on your own device, so your original clips stay with you unless you use a feature that needs them on our servers. The [Privacy Policy](/privacy) explains exactly what is sent and why.
+Add your sound and clips, and let {name} make the first edit. Then change anything you like in the editor: clips, text, filters, effects and sound. Your video is made on your own device, so your original clips stay with you unless you use a feature that needs them on our servers. The [Privacy Policy](/privacy) explains exactly what is sent and why.
 
 ## Plans
 You can start on the Free plan. Paid plans add more tools and credits and show no ads. See [Pricing](/pricing).
@@ -137,17 +144,17 @@ You can start on the Free plan. Paid plans add more tools and credits and show n
 ## Contact
 Questions or ideas: {contact}. {business}.`;
 
-const HOME_ABOUT = `## Reels that move with your music
-Shubix is a video studio for short vertical videos. Choose a song, add your clips or photos, and Shubix finds the beats and places every cut on them, so your Reel feels edited by hand. It works in your browser and in the Android app, with no complicated timeline to learn before your first video.
+const HOME_ABOUT = `## Reels that move with the beat
+Shubix is a video studio for short vertical videos. Add your song and your clips or photos, and Shubix finds the beats and places every cut on them, so your Reel feels edited by hand. It works in your browser and in the Android app, with no complicated timeline to learn before your first video.
 
 ## How to make a Reel
-- **Pick a sound:** choose a song from your device and the part of it you want. Shubix reads its beats, drops and quiet moments.
+- **Add your sound:** choose a song from your device and the part of it you want. Shubix reads its beats, drops and quiet moments.
 - **Add your moments:** select your clips or photos, in the order you like or in the order Shubix suggests.
 - **Get your first edit:** the clips are cut to the music, with transitions and effects that follow the song.
 - **Make it yours:** change the clips, add text and captions, adjust colour and sound, then export in 9:16.
 
 ## Made for every kind of Reel
-A Music Reel is cut to a song. A Talking Reel keeps the words of someone speaking and adds captions. A Photo Reel brings your pictures to life. Copy a Reel starts from the rhythm of a Reel you like.
+A Beat Reel is cut to a song. A Talking Reel keeps the words of someone speaking and adds captions. A Photo Reel brings your pictures to life. Match a Reel's Style starts from the rhythm of a Reel you like.
 
 ## Tips for a better Reel
 Start with your strongest moment, because people decide in the first seconds. Use several short clips instead of one long clip, keep your subject in the centre of the 9:16 frame, and use music you have the right to use. Read more about [Shubix](/about), or see the [plans](/pricing).`;
@@ -178,16 +185,16 @@ export const TEXT_GROUPS: TextGroup[] = [
   page(PAGES, "home", "Home",
     S("Hero",
       C("Title", T("home.hero1", "Line 1", "Your clips."), T("home.hero2", "Line 2 (champagne accent)", "On the beat."), T("home.hero3", "Line 3", "Your Reel.")),
-      C("Text and button", T("home.heroText", "Text", "Choose a track, add your favorite moments, and let Shubix cut them into a Reel that moves with the music.", true), T("home.heroButton", "Button", "Create Music Reel")),
-      C("Tag and steps", T("home.heroTag", "Tag above the title", "Beat-synced reel studio"), T("home.step1", "Step 1", "Pick a sound"), T("home.step2", "Step 2", "Cut to the beat"), T("home.step3", "Step 3", "Export your Reel")),
+      C("Text and button", T("home.heroText", "Text", "Add your song and favorite moments, and let Shubix cut them into a Reel that moves with the beat.", true), T("home.heroButton", "Button", "Create Beat Reel")),
+      C("Tag and steps", T("home.heroTag", "Tag above the title", "Beat-synced reel studio"), T("home.step1", "Step 1", "Add your sound"), T("home.step2", "Step 2", "Cut to the beat"), T("home.step3", "Step 3", "Export your Reel")),
       C("Studio picture", T("home.mockPreview", "On the Reel", "9:16 PREVIEW"), T("home.mockMove", "Under the Reel", "MADE TO MOVE"), T("home.mockSound", "Sound card", "Soundtrack"), T("home.mockBeat", "Under the sound", "BEAT MATCH"),
-        T("home.mockClips", "Clips card", "Your clips"), T("home.mockMoments", "Clips count", "3 moments"), T("home.mockSync", "Last line", "Clips, music, perfectly in sync"))),
+        T("home.mockClips", "Clips card", "Your clips"), T("home.mockMoments", "Clips count", "3 moments"), T("home.mockSync", "Last line", "Clips and beats, perfectly in sync"))),
     S("Create Your Reel", C("Section", T("home.createTitle", "Title", "Create Your Reel"))),
-    S("About Shubix (lower on Home)", C("Section", T("home.aboutBody", "The text", HOME_ABOUT, true))),
+    S("About Shubix (lower on Home)", C("Section", T("home.softwareNote", "Line on Home and Pricing", "Shubix is video editing software. Use your own clips and music you have the rights to. We do not sell music.", true), T("home.aboutBody", "The text", HOME_ABOUT, true))),
     S("Popular Templates", C("Section", T("home.templatesTitle", "Title", "Popular Templates"), T("home.seeAll", "“See all” link (every section)", "See All"))),
     S("Continue Editing",
       C("Section", T("home.continueTitle", "Title", "Continue Editing"), T("common.edited", "Under a draft ({when})", "Edited {when}")),
-      C("No drafts yet", T("home.emptyTitle", "Title", "No Reels yet"), T("home.emptyText", "Line", "Pick a song and a few clips: your first Reel is ready in seconds, cut to the beat.", true), T("home.emptyButton", "Button", "Make your first Reel"))),
+      C("No drafts yet", T("home.emptyTitle", "Title", "No Reels yet"), T("home.emptyText", "Line", "Add your song and a few clips: your first Reel is ready in seconds, cut to the beat.", true), T("home.emptyButton", "Button", "Make your first Reel"))),
     S("Saved in My Reels", C("Section", T("home.savedTitle", "Title", "Saved in My Reels"))),
     S("Tips for Better Reels", C("Section", T("home.tipsTitle", "Title", "Tips for Better Reels"), T("home.tipsSub", "Line on the tips banner", "Simple tips to get more views"))),
   ),
@@ -290,7 +297,7 @@ export const TEXT_GROUPS: TextGroup[] = [
       C("Links", T("auth.adminEyebrow", "Admin code: small heading", "Admin security"), T("auth.adminTitle", "Admin code: title", "Confirm it's you"), T("auth.adminSent", "Admin code: line", "We emailed a 6-digit code to your administrator account. Enter it to use the admin powers for the next 24 hours."), T("auth.adminVerify", "Admin code: button", "Confirm"), T("auth.adminResend", "Admin code: send again", "Send a new code"), T("auth.adminSkip", "Admin code: continue without", "Continue without admin powers"), T("auth.forgotLink", "Forgot password", "Forgot your password?"), T("auth.newHere", "Before “Create an account”", "New here?"), T("auth.createLink", "Create an account", "Create an account"),
         T("auth.partnerLink", "Affiliate partners link", "Affiliate partner? Open your dashboard"))),
     S("Create an account",
-      C("Form", T("auth.signUp", "Title", "Create your account"), T("auth.signUpSub", "Line under sign up title", "Create your account and start making Reels with music."), T("auth.signUpButton", "Button", "Create account"), T("auth.newPasswordPlaceholder", "Password placeholder", "At least 8 characters"),
+      C("Form", T("auth.signUp", "Title", "Create your account"), T("auth.signUpSub", "Line under sign up title", "Create your account and start making Reels."), T("auth.signUpButton", "Button", "Create account"), T("auth.newPasswordPlaceholder", "Password placeholder", "At least 8 characters"),
         T("auth.haveAccount", "Before “Sign in”", "Already have an account?"))),
     S("Forgot password",
       C("Form", T("auth.back", "Back link", "Back to sign in"), T("auth.forgotTitle", "Title", "Forgot your password?"), T("auth.forgotText", "Line", "We'll email you a link to choose a new one."),
@@ -445,20 +452,20 @@ export const TEXT_GROUPS: TextGroup[] = [
   ),
   page(PAGES, "notfound", "Page not found",
     S("Page", C("Message", T("notFound.title", "Title", "This page is not here"), T("notFound.text", "Line", "The link may be old, or the page has moved. Your Reels and projects are safe."),
-      T("notFound.home", "Button", "Go to Home"), T("notFound.make", "Second button", "Make a Music Reel")))),
+      T("notFound.home", "Button", "Go to Home"), T("notFound.make", "Second button", "Make a Beat Reel")))),
 
   // ---------------------------------------------------------------- on every page
   page(EVERY, "nav", "Menu & top bar",
     S("Menu",
       C("Headings", T("nav.studio", "Studio", "Studio"), T("nav.library", "Library", "Library"), T("nav.account", "Account", "Account")),
-      C("Links", T("nav.voices", "Voice profiles", "Voice profiles"), T("nav.rewardsLink", "Invite & earn", "Invite & earn"), T("nav.home", "Home", "Home"), T("nav.music", "Music Reel", "Music Reel"), T("nav.talking", "Talking Reel", "Talking Reel"), T("nav.photo", "Photo Reel", "Photo Reel"),
-        T("nav.copy", "Copy a Reel", "Copy a Reel"), T("nav.story", "Story Maker", "Story Maker"), T("nav.reels", "My Reels", "My Reels"), T("nav.templates", "Templates", "Templates"),
+      C("Links", T("nav.voices", "Voice profiles", "Voice profiles"), T("nav.rewardsLink", "Invite & earn", "Invite & earn"), T("nav.home", "Home", "Home"), T("nav.music", "Beat Reel", "Beat Reel"), T("nav.talking", "Talking Reel", "Talking Reel"), T("nav.photo", "Photo Reel", "Photo Reel"),
+        T("nav.copy", "Match a Reel's Style", "Match a Reel's Style"), T("nav.story", "Story Maker", "Story Maker"), T("nav.reels", "My Reels", "My Reels"), T("nav.templates", "Templates", "Templates"),
         T("nav.brands", "Brands", "Brands"), T("nav.pricing", "Pricing & plans", "Pricing & plans")),
       C("Bottom", T("nav.newReel", "New Reel button", "New Reel"), T("nav.adminDashboard", "Phone app menu: the administrators' link", "Admin dashboard"), T("nav.signOut", "Sign out", "Sign out"), T("nav.studioTag", "Tag next to the email", "STUDIO"), T("common.adminDashboard", "Admin dashboard", "Admin dashboard"))),
     S("Top bar",
       C("Titles", T("nav.yourReel", "Editor page", "Your Reel"), T("nav.eyebrow", "Small line above the title", "Shubix · Studio")),
       C("Credits pill", T("nav.credits", "After the number", "credits"), T("nav.creditsHint", "Hover", "Your credits: plans and top-ups"), T("nav.planSuffix", "Plan (“{plan} plan”)", "{plan} plan")),
-      C("Header (computers)", T("templates.headerSearch", "Search placeholder", "Search templates, music, effects…"), T("common.account", "Account menu", "Account")),
+      C("Header (computers)", T("templates.headerSearch", "Search placeholder", "Search templates, effects…"), T("common.account", "Account menu", "Account")),
       C("Buttons (screen readers)", T("common.back", "Back", "Back"), T("common.openMenu", "Open menu", "Open menu"), T("common.closeMenu", "Close menu", "Close menu"), T("common.close", "Close", "Close"))),
     S("Bottom bar (phones)", C("Tabs", T("nav.create", "Create", "Create"), T("nav.more", "More", "More"))),
     S("Notifications", C("Bell", T("bell.title", "Title", "Notifications"), T("bell.new", "Unread ({n})", "Notifications, {n} new"), T("bell.empty", "None", "You're all caught up. Reels you save to My Reels show up here.", true),

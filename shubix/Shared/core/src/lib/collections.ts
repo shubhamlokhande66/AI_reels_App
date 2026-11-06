@@ -24,10 +24,10 @@ export const LISTS: ListDef[] = [
       { key: "icon", label: "Icon", type: "icon" }, { key: "tone", label: "Colour", type: "tone" },
     ],
     items: [
-      card("music", "Music Reel", "Sync with Music", "/create/music", "music", "music"),
+      card("music", "Beat Reel", "Cuts on every beat", "/create/music", "music", "music"),
       card("talking", "Talking Reel", "Vlogs & Tutorials", "/create/talking", "mic", "talk"),
       card("photo", "Photo Reel", "Bring Photos to Life", "/create/photo", "image", "photo"),
-      card("copy", "Copy a Reel", "Match any Reel", "/create/copy", "copy", "copy"),
+      card("copy", "Match a Reel's Style", "Its rhythm and look on your clips", "/create/copy", "copy", "copy"),
       card("templates", "Templates", "Ready-made Styles", "/templates", "grid", "template"),
       card("reels", "My Reels", "Watch & share", "/reels", "video", "recreate"),
     ],

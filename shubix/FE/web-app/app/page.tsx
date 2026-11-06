@@ -73,7 +73,7 @@ export default function Home() {
       <AdSlot place="homeEnd" />
       <TipsSection />
       <GetAppSection />
-      <section aria-label="About Shubix" className="max-w-3xl text-[14px] leading-relaxed text-muted"><RichText text={text("home.aboutBody")} /></section>
+      <section aria-label="About Shubix" className="max-w-3xl text-[14px] leading-relaxed text-muted"><RichText text={text("home.aboutBody")} /><p className="mt-3 mb-0">{text("home.softwareNote")}</p></section>
       {!paid && <ProBanner />}
     </div>
   );

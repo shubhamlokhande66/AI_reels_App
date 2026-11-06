@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { z } from "zod";
 import { getProvider, type ManagedProvider } from "../ai";
 import { clean, Text } from "../ai/text";
@@ -105,8 +106,8 @@ export const DirectIn = z.object({
   wish: z.string().max(WISH_MAX).default(""),
   /** the template's kind of Reel (car, wedding...): its trend comes first in the AI's guide */
   reelKind: z.string().regex(/^[a-z]{2,16}$/).optional(),
-  /** the Reel (the phone's id of it): Shubix AI is charged once per Reel */
-  reelId: z.string().regex(/^[\w-]{6,64}$/).optional(),
+  /** the Reel (the phone's id of it): Shubix AI is charged once per Reel; a request without one is a Reel of its own, never free */
+  reelId: z.string().regex(/^[\w-]{6,64}$/).default(() => crypto.randomUUID()),
   /** a chat message this plan answers (its number in the chat): charged once, small or whole-Reel by its words */
   chat: z.object({ n: z.number().int().min(1).max(500), id: z.string().regex(/^[\w-]{6,40}$/).optional(), text: z.string().max(300) }).optional(),
   /** a small change: the plan now, and what to change in it; only the cuts that change come back */
@@ -447,7 +448,7 @@ export async function direct(d: DirectIn, provider: ManagedProvider = getProvide
 /* ---- 1. pace: how fast to cut in each section ---- */
 export const PaceIn = z.object({
   mode: z.enum(MODES),
-  reelId: z.string().regex(/^[\w-]{6,64}$/).optional(),
+  reelId: z.string().regex(/^[\w-]{6,64}$/).default(() => crypto.randomUUID()),
   duration: z.number().min(1).max(600),
   bpm: z.number().min(30).max(300),
   /** seconds of footage the person gave, and how many clips (little footage: slower cuts repeat less) */

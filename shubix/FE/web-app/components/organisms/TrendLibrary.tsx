@@ -187,7 +187,7 @@ function Suggestions() {
   const q = useQuery({ queryKey: ["style-suggestions"], queryFn: api.styleSuggestions });
   return (
     <div className="flex flex-col gap-3">
-      <p className="m-0 text-[12.5px] text-muted">Reels people gave to “Copy a Reel” (Copied) and Reels they made and saved (Made &amp; saved). They never see this. Only the numbers are kept (pace, cuts, transitions, look), never the video. Pick the kind and tap Use to teach Shubix&apos;s styles with it, or remove it.</p>
+      <p className="m-0 text-[12.5px] text-muted">Reels people gave to “Match a Reel's Style” (Copied) and Reels they made and saved (Made &amp; saved). They never see this. Only the numbers are kept (pace, cuts, transitions, look), never the video. Pick the kind and tap Use to teach Shubix&apos;s styles with it, or remove it.</p>
       {q.isLoading && <Spinner size="sm" label="Loading…" />}
       {q.error && <ErrorBanner message={errorMessage(q.error)} />}
       {q.data && q.data.items.length === 0 && <EmptyState icon="check" title="Nothing waiting" hint="New Reels from people show up here." />}

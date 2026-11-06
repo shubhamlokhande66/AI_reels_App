@@ -195,7 +195,7 @@ export function money(v: number | null | undefined, currency: string) {
 }
 
 /** the AI's kinds of work, in plain words */
-const TASK_NAME: Record<string, string> = { shot_ranking: "Picking shots (and Copy a Reel)", studio_director: "AI director (pace, plan, New mix)", studio_captions: "Captions", translate: "Caption translation", general: "Other" };
+const TASK_NAME: Record<string, string> = { shot_ranking: "Picking shots (and Match a Reel's Style)", studio_director: "AI director (pace, plan, New mix)", studio_captions: "Captions", translate: "Caption translation", general: "Other" };
 function Period({ title, p, currency }: { title: string; p: AiUsagePeriod; currency: string }) {
   return (
     <Card className="flex flex-col gap-2 p-3 md:p-3">

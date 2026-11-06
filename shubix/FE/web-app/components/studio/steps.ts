@@ -59,14 +59,14 @@ export function initSteps(root: HTMLElement): () => void {
     (e) => {
       const t = e.target as HTMLElement;
       const k = t.closest<HTMLButtonElement>("#kind button");
-      if (k) return choose(k.dataset.k === "talk" ? "talk" : "music", k.dataset.k === "talk" ? "Talking Reel" : "Music Reel");
+      if (k) return choose(k.dataset.k === "talk" ? "talk" : "music", k.dataset.k === "talk" ? "Talking Reel" : "Beat Reel");
       if (t.closest("#photokind")) {
         asMusic();
         return choose("photo", "Photos to Reel");
       }
       if (t.closest("#copycard")) {
         asMusic();
-        return choose("copy", "Copy a Reel");
+        return choose("copy", "Match a Reel's Style");
       }
       if (t.closest("#tpl button")) {
         chosen = true;
