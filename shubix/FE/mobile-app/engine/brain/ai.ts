@@ -68,7 +68,7 @@ async function aiRun(){
     ES.aiBusy = false;
     if(e && e.name === 'AbortError') return;
     ES.aiGaveUp = EH.reelIdNow();   // nothing more comes from Shubix for this Reel: it is final as the phone made it
-    console.warn('AI picks not used:', e); EH.aiStat('Shubix could not look at your clips right now. Your Reel uses the best moments picked on your phone' + (EH.aiCostOf('reel') && ES.dirPlannedReel !== EH.reelIdNow() ? ' · no credits were used.' : '.'));
+    console.warn('AI picks not used:', e); EH.aiStat('Shubix could not look at your clips right now. Your Reel uses the best moments picked on your phone' + (EH.aiCostOf('reel') && ES.dirPlannedReel !== EH.reelIdNow() ? ' · any credits taken for it come back within the hour.' : '.'));
     EH.chatFail('Shubix could not look at your clips right now. Try again in a moment.');
   }
 }

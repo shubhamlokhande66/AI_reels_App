@@ -56,4 +56,5 @@ export function sweepSoon() {
   if (g.__remindAt && now - g.__remindAt < 10 * 60_000) return;
   g.__remindAt = now;
   void remindAbandoned(now).catch((e) => console.warn(`checkout reminders: ${(e as Error).message}`));
+  void import("./credits").then((c) => c.refundAbandoned(now)).catch((e) => console.warn(`abandoned Reels' credits: ${(e as Error).message}`));
 }
