@@ -2180,9 +2180,10 @@ async function aiRun(){
       tasks.lock();
       charged += res.charged || 0; if(typeof res.balance === 'number' && aiInfo){ aiInfo.balance = res.balance; window.dispatchEvent(new Event('brs-credits')); }
       for(const c of res.clips || []){ const j = part.find(x=>x.id===c.id); if(!j) continue;
-        j.src.ai = { frames: c.frames, summary: c.summary, mood: c.mood }; const fp = fpOf(j.src); aiCache.set(fp, j.src.ai);
+        delete j.src.aiFramesMade;   // answered: its pictures are not needed again, only the labels stay
+        j.src.ai = { frames: c.frames, about: c.about, summary: c.summary, mood: c.mood }; const fp = fpOf(j.src); aiCache.set(fp, j.src.ai);
         try{ localStorage.setItem('brs-ai:'+fp, JSON.stringify(j.src.ai)); }catch(e){} }
-      for(const f of res.failed || []){ const j = part.find(x=>x.id===f.id); if(j){ j.src.aiFailed = true; failed++; } }
+      for(const f of res.failed || []){ const j = part.find(x=>x.id===f.id); if(j){ j.src.aiFailed = true; delete j.src.aiFramesMade; failed++; } }
     }
     aiBusy = false;
     if(sources.some(s=>!s.ai && !s.aiFailed && !s.removed) && !pending) return aiRun();   // clips added meanwhile
@@ -2191,6 +2192,7 @@ async function aiRun(){
     aiBusy = false;
     if(e && e.name === 'AbortError') return;
     aiGaveUp = reelIdNow();   // nothing more comes from Shubix for this Reel: it is final as the phone made it
+    need.forEach(s => { delete s.aiFramesMade; });
     console.warn('AI picks not used:', e); aiStat('Shubix could not look at your clips right now. Your Reel uses the best moments picked on your phone' + (aiCostOf('reel') && dirPlannedReel !== reelIdNow() ? ' · any credits taken for it come back within the hour.' : '.'));
   }
 }
@@ -2765,7 +2767,7 @@ function rememberTools(){ if(!edit.length) return; const used = new Set();
 function dirRequest(cands){
   const per = Math.max(1, buf.duration/30), music = cutMusic(), pc = paceNow();
   const req = { mode, reelId: reelIdNow(), ...(tplKind ? { reelKind: tplKind } : {}), ...(chatAsk ? { chat: { n: chatAsk.n, id: chatAsk.id, text: chatAsk.text } } : {}), wish: wish.slice(-800), duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
-    clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
+    clips: sources.map((s,k)=>({ alias:'c'+(k+1), about: (s.ai && s.ai.about) || '', summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })), ...(songFeel ? { song: songFeel } : {}),
     recent: recentTools(),
     allowed: { fx: Object.keys(FX_NAME).filter(k => !isLocked('fx', k)), tr: Object.keys(TR_DUR).filter(k => !isLocked('tr', k)) },
     budget: mode === 'copy' && copyBudget ? copyBudget : {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
@@ -2928,11 +2930,34 @@ function paceFromSong(sp){
 function paceMaybe(){
   if(keepSaved || aiHeldBack()) return;
   if(paceBusy || !paceWanted() || !aiReelOk() || refReading) return;
+  if(sources.some(s=>!s.ai && !s.aiFailed && !s.removed)) return;   // after the AI has seen what the clips are about
   const key = paceKey();
   if(paceCache.has(key)){ pacing = paceCache.get(key); makeEdit(); return; }
   const sp = songPace.get(paceSongKey()), p = sp && paceFromSong(sp);
   if(p){ pacing = { key, ...p }; paceCache.set(key, pacing); makeEdit(); return; }
   paceRun(key);
+}
+/* a part of the song as a 16 kHz mono WAV: what Shubix AI hears */
+function songSample(M, sr, from, secs){
+  const a = Math.max(0, Math.round(from*sr)), n = Math.min(Math.round(secs*16000), Math.floor((M.length - a)*16000/sr)); if(n < 16000) return null;
+  let pk = 0; const y = new Float32Array(n); for(let i=0;i<n;i++){ const p = a + i*sr/16000, k = Math.floor(p), f = p - k, v = (M[k] || 0)*(1 - f) + (M[k+1] || 0)*f; y[i] = v; if(Math.abs(v) > pk) pk = Math.abs(v); }
+  const dv = new DataView(new ArrayBuffer(44 + n*2)), str = (o, x) => { for(let i=0;i<x.length;i++) dv.setUint8(o+i, x.charCodeAt(i)); }, gain = pk > 0 ? 0.9/pk : 1;
+  str(0,'RIFF'); dv.setUint32(4, 36 + n*2, true); str(8,'WAVE'); str(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,16000,true); dv.setUint32(28,32000,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); str(36,'data'); dv.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++) dv.setInt16(44 + i*2, Math.max(-1, Math.min(1, y[i]*gain))*32767, true);
+  return new Uint8Array(dv.buffer);
+}
+// Shubix AI hears 30 s of the part the Reel uses, once per song and part; a failure never stands in the way of the Reel
+let songHeard = '', songFeel = null;
+async function hearSong(){
+  if(!song || !song.mono || kind === 'talk') return;
+  const key = song.key + '|' + Math.round(secStart || 0); if(songHeard === key) return;
+  const body = songSample(song.mono, song.buf.sampleRate, secStart || 0, 30); if(!body) return;
+  songHeard = key; songFeel = null;
+  const tm = timeoutSignal(20000);
+  try{ const r = await fetch('/api/studio/song?reel=' + encodeURIComponent(reelIdNow()), { method:'POST', headers:{'Content-Type':'audio/wav'}, body, signal: tm.signal });
+    if(!r.ok) throw new Error('song ' + r.status); songFeel = await r.json(); }
+  catch(e){ songHeard = ''; console.warn('The song was not heard:', e); }
+  finally{ tm.done(); }
 }
 async function paceRun(key){
   const sm = getSoundMap(); if(!sm){ paceFailedKey = key; return; }
@@ -2940,10 +2965,11 @@ async function paceRun(key){
   const secs = whole || sectionsOf(sm, basePlan, beats, period, buf.duration).slice(0, 24);
   if(!secs.length){ paceFailedKey = key; return; }
   paceBusy = true; aiStat('Shubix is listening to the song and choosing the pace…');
+  await hearSong();
   const tm = timeoutSignal(25000);
   try{
     const req = { mode, reelId: reelIdNow(), ...(tplKind ? { reelKind: tplKind } : {}), wish: wish.slice(-800), duration: +(whole ? song.buf.duration : buf.duration).toFixed(2), bpm: +(60/(whole ? song.r.period : period)).toFixed(1), clips: sources.filter(s=>!s.removed).length,
-      footage: +sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs, reference: refContext(),
+      footage: +sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs, reference: refContext(), ...(songFeel ? { song: songFeel } : {}), about: sources.map(s=>!s.removed && s.ai && s.ai.about).filter(Boolean).join('; ').slice(0, 400),
       ...(whole ? { reel: +buf.duration.toFixed(2) } : {}) };
     const r = await fetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
@@ -2976,6 +3002,7 @@ async function directorRun(key){
   const soft = setTimeout(() => { late = true; dirBusy = false; dirFailedKey = key;
     aiStat('Shubix is taking longer than usual. Your Reel uses the phone\'s own smart edit for now; Shubix\'s plan comes as soon as it is ready.'); }, 45000);
   try{
+    await hearSong();
     const cands = directorCandidates(); dirCands = cands;
     const { req, ctx } = dirRequest(cands), sig = planSig(), mix = mixNo, st = mixStore();
     const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });

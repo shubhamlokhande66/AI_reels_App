@@ -227,7 +227,7 @@ export class GeminiProvider extends Provider {
   async generate(req: AIRequest): Promise<AIResult> {
     const model = this.modelFor(req);
     if (!model) throw this.err(`No Gemini model configured: set ${isVision(req) ? "GEMINI_VISION_MODEL / GEMINI_TEXT_MODEL" : "GEMINI_TEXT_MODEL"} (or choose one in Settings).`, "not_configured");
-    const contents = req.messages ? req.messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: this.parts(m.content, m.images ?? []) })) : [{ role: "user", parts: this.parts(req.user ?? "", req.images ?? []) }];
+    const contents = req.messages ? req.messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: this.parts(m.content, m.images ?? []) })) : [{ role: "user", parts: [...this.parts(req.user ?? "", req.images ?? []), ...(req.audio ? [{ inline_data: { mime_type: req.audio.mime, data: req.audio.data.toString("base64") } }] : [])] }];
     const config: Record<string, unknown> = {};
     if (req.temperature !== null && req.temperature !== undefined) config.temperature = req.temperature;
     if (wantsJson(req)) config.responseMimeType = "application/json";

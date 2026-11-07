@@ -69,6 +69,9 @@ export class ManagedProvider {
   async structured<S extends z.ZodType>(system: string, user: string, schema: S, o: { task?: string; temperature?: number | null; messages?: Message[] | null; maxOutputTokens?: number | null } = {}): Promise<z.infer<S>> {
     return (await runStructured(this, { system, user, messages: o.messages ?? null, temperature: o.temperature ?? null, task: o.task, maxOutputTokens: o.maxOutputTokens ?? null }, schema))[0];
   }
+  async audioStructured<S extends z.ZodType>(system: string, user: string, audio: { data: Buffer; mime: string }, schema: S, o: { task?: string; temperature?: number | null } = {}): Promise<z.infer<S>> {
+    return (await runStructured(this, { system, user, audio, temperature: o.temperature ?? 0.2, task: o.task }, schema))[0];
+  }
   async visionStructured<S extends z.ZodType>(system: string, user: string, images: (Buffer | string)[], schema: S, o: { task?: string; temperature?: number | null } = {}): Promise<z.infer<S>> {
     return (await runStructured(this, { system, user, images, temperature: o.temperature ?? 0.1, task: o.task ?? "clip_understanding" }, schema))[0];
   }
@@ -95,6 +98,14 @@ export function getProvider(task: string | null = null): ManagedProvider {
   const cfg = effective(), primary = buildProvider(providerFor(cfg, task), cfg);
   const fallback = cfg.fallbackEnabled && (PROVIDERS as readonly string[]).includes(cfg.fallbackProvider) && cfg.fallbackProvider !== primary.name ? buildProvider(cfg.fallbackProvider, cfg) : null;
   return new ManagedProvider(primary, task ?? "general", fallback, settings.aiMaxRetries, cfg);
+}
+
+/** Hearing sound: Gemini whichever provider does the other tasks (budget and usage logging included, no fallback: the others cannot hear). */
+export function getAudioProvider(task: string): ManagedProvider {
+  if (g.__aiOverride) return g.__aiOverride;
+  if (!settings.geminiApiKey.trim()) throw new AIUnavailable("Hearing the song needs Gemini: set GEMINI_API_KEY.", { code: "AI_AUDIO_UNAVAILABLE" });
+  const cfg = effective();
+  return new ManagedProvider(buildProvider("gemini", cfg), task, null, settings.aiMaxRetries, cfg);
 }
 
 export { AIProviderError, AIResponseError };

@@ -108,6 +108,15 @@ export function aiBonus(ai, slot, last){
   if(last && role!=='ending') fit += 0.3*(ai.roles.ending || 0);
   return ai.conf * (2.2*(ai.score - 0.5) + fit);
 }
+/** a part of the song as a 16 kHz mono WAV: what Shubix AI hears */
+export function songSample(M, sr, from, secs){
+  const a = Math.max(0, Math.round(from*sr)), n = Math.min(Math.round(secs*16000), Math.floor((M.length - a)*16000/sr)); if(n < 16000) return null;
+  let pk = 0; const y = new Float32Array(n); for(let i=0;i<n;i++){ const p = a + i*sr/16000, k = Math.floor(p), f = p - k, v = (M[k] || 0)*(1 - f) + (M[k+1] || 0)*f; y[i] = v; if(Math.abs(v) > pk) pk = Math.abs(v); }
+  const dv = new DataView(new ArrayBuffer(44 + n*2)), str = (o, x) => { for(let i=0;i<x.length;i++) dv.setUint8(o+i, x.charCodeAt(i)); }, gain = pk > 0 ? 0.9/pk : 1;
+  str(0,'RIFF'); dv.setUint32(4, 36 + n*2, true); str(8,'WAVE'); str(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,16000,true); dv.setUint32(28,32000,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); str(36,'data'); dv.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++) dv.setInt16(44 + i*2, Math.max(-1, Math.min(1, y[i]*gain))*32767, true);
+  return new Uint8Array(dv.buffer);
+}
 export function toSlots(list, cands){
   const slots = [];
   // an answer that is not a list of cuts (a broken reply) gives no slots: the phone's own edit stays

@@ -55,7 +55,7 @@ Data is encrypted in transit (https). People can ask for deletion (above).
 | Financial info → Purchase history | Yes | No | App functionality (plans, credits, receipts) | Yes (only when buying) |
 | Financial info → Payment info | No: Razorpay takes the card/UPI on its own page; the app never sees it | | | |
 | Photos and videos | Yes, when Shubix AI is used: small frames of the clips go to the server to choose the cuts; also the Reels saved to My Reels | No | App functionality | Yes |
-| Audio → Music files / other audio | Yes, when captions or Shubix AI are used: the song's audio for the words | No | App functionality | Yes |
+| Audio → Music files / other audio | Yes, when captions or Shubix AI are used: the song's audio for the words, and a short sample so Shubix AI can match the edit to the song | No | App functionality | Yes |
 | App activity → Other user-generated content | Yes: texts, templates, brands, saved styles | No | App functionality | Yes |
 | App info and performance → Crash logs | Yes: the error message and where it happened, kept 30 days, not linked to an account (`lib/errors.ts`) | No | Analytics (fixing errors) | No |
 | Device or other IDs → Advertising ID | Yes, by AdMob | Yes, with Google (AdMob) | Advertising | No on the Free plan |

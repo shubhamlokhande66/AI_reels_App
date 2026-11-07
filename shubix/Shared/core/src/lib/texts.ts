@@ -84,7 +84,7 @@ const LEGAL_PRIVACY = `This policy explains what {name} collects, why, and the c
 - We do not sell your data. On the Free plan the app may show ads (see Ads and cookies below); paid plans see none.
 
 ## Services that help us
-- AI services (for example Google Gemini) receive the text or keyframes needed for a feature you use, such as planning a story or making a narration.
+- AI services (for example Google Gemini) receive the text, keyframes or a short sample of your song needed for a feature you use, such as planning a story, making a narration or choosing an AI Reel's edit. We do not keep the keyframes or the song's sample, only labels such as what a clip shows or a song's mood, so the work is not repeated; these labels are deleted after 30 days.
 - Cloud services host the app and its database, and may make AI pictures for story scenes.
 - Razorpay processes payments. Social networks receive a Reel only when you ask us to post it.
 - Google AdSense on the website and Google AdMob in the phone app may show ads on the Free plan (only on pages like Home and My Reels, never in the editor).
