@@ -2,7 +2,7 @@
 // the website's studio: its state is the object ES, and what is the app's own comes through EH.
 // The golden test (scripts/engine-golden.mjs) says it still makes the same Reel.
 // @ts-nocheck
-import { toSlots } from './pure';
+import { songSample, toSlots } from './pure';
 import { sectionsOf } from '../components/studio/soundmap';
 import { TEXT_TEMPLATES } from '@mobile/core/lib/text-templates';
 
@@ -57,9 +57,10 @@ async function aiRun(){
       EH.aiSpent();
       charged += res.charged || 0; if(typeof res.balance === 'number' && ES.aiInfo){ ES.aiInfo.balance = res.balance; EH.creditsChanged(); }
       for(const c of res.clips || []){ const j = part.find(x=>x.id===c.id); if(!j) continue;
-        j.src.ai = { frames: c.frames, summary: c.summary, mood: c.mood }; const fp = EH.fpOf(j.src); EH.aiCache.set(fp, j.src.ai);
+        framesMade.delete(j.src);   // answered: its pictures are not needed again, only the labels stay
+        j.src.ai = { frames: c.frames, about: c.about, summary: c.summary, mood: c.mood }; const fp = EH.fpOf(j.src); EH.aiCache.set(fp, j.src.ai);
         try{ EH.keepAiPick(fp, j.src.ai); }catch(e){} }
-      for(const f of res.failed || []){ const j = part.find(x=>x.id===f.id); if(j){ j.src.aiFailed = true; failed++; } }
+      for(const f of res.failed || []){ const j = part.find(x=>x.id===f.id); if(j){ j.src.aiFailed = true; framesMade.delete(j.src); failed++; } }
     }
     ES.aiBusy = false;
     if(ES.sources.some(s=>!s.ai && !s.aiFailed && !s.removed) && !ES.pending) return aiRun();   // clips added meanwhile
@@ -68,6 +69,7 @@ async function aiRun(){
     ES.aiBusy = false;
     if(e && e.name === 'AbortError') return;
     ES.aiGaveUp = EH.reelIdNow();   // nothing more comes from Shubix for this Reel: it is final as the phone made it
+    need.forEach(s => framesMade.delete(s));
     console.warn('AI picks not used:', e); EH.aiStat('Shubix could not look at your clips right now. Your Reel uses the best moments picked on your phone' + (EH.aiCostOf('reel') && ES.dirPlannedReel !== EH.reelIdNow() ? ' · any credits taken for it come back within the hour.' : '.'));
     EH.chatFail('Shubix could not look at your clips right now. Try again in a moment.');
   }
@@ -100,16 +102,29 @@ function timeoutSignal(ms){
   EH.ac.signal.addEventListener('abort', stop);
   return { signal: c.signal, timedOut: () => late, done: () => { clearTimeout(t); EH.ac.signal.removeEventListener('abort', stop); } };
 }
+// Shubix AI hears 30 s of the part the Reel uses, once per song and part; a failure never stands in the way of the Reel
+async function hearSong(){
+  if(!ES.song || !ES.song.mono || ES.kind === 'talk') return;
+  const key = ES.song.key + '|' + Math.round(ES.secStart || 0); if(ES.songHeard === key) return;
+  const body = songSample(ES.song.mono, ES.song.buf.sampleRate, ES.secStart || 0, 30); if(!body) return;
+  ES.songHeard = key; ES.songFeel = null;
+  const tm = timeoutSignal(20000);
+  try{ const r = await EH.apiFetch('/api/studio/song?reel=' + encodeURIComponent(EH.reelIdNow()), { method:'POST', headers:{'Content-Type':'audio/wav'}, body, signal: tm.signal });
+    if(!r.ok) throw new Error('song ' + r.status); ES.songFeel = await r.json(); }
+  catch(e){ ES.songHeard = ''; console.warn('The song was not heard:', e); }
+  finally{ tm.done(); }
+}
 async function paceRun(key){
   const sm = EH.getSoundMap(); if(!sm){ ES.paceFailedKey = key; return; }
   const whole = EH.wholeSections(), songKey = EH.paceSongKey();
   const secs = whole || sectionsOf(sm, ES.basePlan, ES.beats, ES.period, ES.buf.duration).slice(0, 24);
   if(!secs.length){ ES.paceFailedKey = key; return; }
   ES.paceBusy = true; EH.aiStat('Shubix is listening to the song and choosing the pace…');
+  await hearSong();
   const tm = timeoutSignal(25000);
   try{
     const req = { mode: ES.mode, reelId: EH.reelIdNow(), ...(ES.tplKind ? { reelKind: ES.tplKind } : {}), wish: ES.wish.slice(-800), duration: +(whole ? ES.song.buf.duration : ES.buf.duration).toFixed(2), bpm: +(60/(whole ? ES.song.r.period : ES.period)).toFixed(1), clips: ES.sources.filter(s=>!s.removed).length,
-      footage: +ES.sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: EH.isPhotoMode() ? 'photo' : 'music', sections: secs, reference: EH.refContext(),
+      footage: +ES.sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: EH.isPhotoMode() ? 'photo' : 'music', sections: secs, reference: EH.refContext(), ...(ES.songFeel ? { song: ES.songFeel } : {}), about: ES.sources.map(s=>!s.removed && s.ai && s.ai.about).filter(Boolean).join('; ').slice(0, 400),
       ...(whole ? { reel: +ES.buf.duration.toFixed(2) } : {}) };
     const r = await EH.apiFetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
@@ -142,6 +157,7 @@ async function directorRun(key){
   const soft = setTimeout(() => { late = true; ES.dirBusy = false; ES.dirFailedKey = key;
     EH.aiStat('Shubix is taking longer than usual. Your Reel uses the phone\'s own smart edit for now; Shubix\'s plan comes as soon as it is ready.'); }, 45000);
   try{
+    await hearSong();
     const cands = EH.directorCandidates(); ES.dirCands = cands;
     const { req, ctx } = EH.dirRequest(cands), sig = EH.planSig(), mix = ES.mixNo, st = EH.mixStore();
     const r = await EH.apiFetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });

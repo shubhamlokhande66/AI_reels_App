@@ -279,8 +279,8 @@ function applyDirectorStyle(){
 function dirRequest(cands){
   const per = Math.max(1, ES.buf.duration/30), music = EH.cutMusic(), pc = EH.paceNow();
   const req = { mode: ES.mode, reelId: EH.reelIdNow(), ...(ES.tplKind ? { reelKind: ES.tplKind } : {}), ...(ES.chatAsk ? { chat: { n: ES.chatAsk.n, id: ES.chatAsk.id, text: ES.chatAsk.text } } : {}), wish: ES.wish.slice(-800), duration: +ES.buf.duration.toFixed(2), bpm: +(60/ES.period).toFixed(1), hook: ES.hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: EH.refContext(),
-    clips: ES.sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
-    recent: EH.recentTools(),
+    clips: ES.sources.map((s,k)=>({ alias:'c'+(k+1), about: (s.ai && s.ai.about) || '', summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
+    recent: EH.recentTools(), ...(ES.songFeel ? { song: ES.songFeel } : {}),
     allowed: { fx: Object.keys(EH.FX_NAME).filter(k => !EH.isLocked('fx', k)), tr: Object.keys(TR_DUR).filter(k => !EH.isLocked('tr', k)) },
     budget: ES.mode === 'copy' && ES.copyBudget ? ES.copyBudget : {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
     slots: ES.plan.map((s,i)=>({ i, t:+s.start.toFixed(2), len:+(s.end-s.start).toFixed(2), type:s.type, beats: ES.beats.filter(b=>b>s.start+0.1 && b<s.end-0.05).length,
@@ -315,6 +315,7 @@ function directorMaybe(){
 function paceMaybe(){
   if(ES.keepSaved || EH.aiHeldBack()) return;
   if(ES.paceBusy || !EH.paceWanted() || !EH.aiReelOk() || ES.refReading) return;
+  if(ES.sources.some(s=>!s.ai && !s.aiFailed && !s.removed)) return;   // after the AI has seen what the clips are about
   const key = EH.paceKey();
   if(ES.paceCache.has(key)){ ES.pacing = ES.paceCache.get(key); makeEdit(); return; }
   const sp = ES.songPace.get(EH.paceSongKey()), p = sp && EH.paceFromSong(sp);

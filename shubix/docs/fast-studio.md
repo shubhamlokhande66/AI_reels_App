@@ -148,6 +148,16 @@ shot picking", so it can use its own provider). It is remembered per device.
 Measured with a stand-in model that knows which footage is good (3 runs): opening / drop / hit shots on the good footage
 70-86% with AI against 27-45% without; the opening shot was a top moment every time; 23 frames in one 212 KB request.
 
+## AI knows the subject (with AI picks on)
+
+Each clip's answer from `/api/studio/rank-shots` has `about`: free text (at most 100 characters) on what the clip shows, on any topic, not only the fixed tags. The pace and the plan both read it, so the pace now waits until the clips have been looked at. The plan's guide asks the AI to use what it knows of the best Reels on that subject, to invent no facts on screen, and never to name a person from their face.
+
+The frames stay in memory only. The browser and the phone drop them once the AI has answered or given up (a Cancel keeps them for Proceed). The API sends them to the model and stores only the labels, in `studio_shot_cache` and `studio_song_feel`, which expire after 30 days.
+
+## AI hears the song (with AI picks on)
+
+Before the pace and the plan, the phone sends 30 s of the part the Reel uses (16 kHz mono WAV, about 1 MB) to `/api/studio/song`. Gemini hears it, whichever provider does the other tasks, and returns its mood, energy, genre, language, theme and feel (`server/studio/song.ts`). Only these labels are kept, never the sound. Both prompts open with the feel; if this step fails the Reel goes on without it.
+
 ## AI director (with AI picks on)
 
 After the AI has scored the clips, one text call (no images, about 10-20 KB) plans the Reel as a story. The music has

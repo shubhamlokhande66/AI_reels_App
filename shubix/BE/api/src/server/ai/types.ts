@@ -37,7 +37,7 @@ export class AIResponseError extends AppError {
 
 export interface Message { role: "user" | "assistant"; content: string; images?: string[] }
 export interface AIRequest {
-  system: string; user?: string; messages?: Message[] | null; images?: (Buffer | string)[]; schema?: z.ZodType | null; jsonMode?: boolean;
+  system: string; user?: string; messages?: Message[] | null; images?: (Buffer | string)[]; audio?: { data: Buffer; mime: string } | null; schema?: z.ZodType | null; jsonMode?: boolean;
   temperature?: number | null; task?: string; maxOutputTokens?: number | null;
 }
 export const wantsJson = (r: AIRequest) => Boolean(r.jsonMode || r.schema);
@@ -135,7 +135,7 @@ export async function runStructured<S extends z.ZodType>(provider: Generator, re
 // ------------------------------------------------------------------ tasks
 export interface TaskSpec { id: string; kind: "text" | "vision"; essential: boolean; label: string }
 export const TASKS: Record<string, TaskSpec> = Object.fromEntries(([
-  ["shot_ranking", "vision", false, "AI shot picking"], ["studio_director", "text", false, "AI director"], ["studio_translate", "text", false, "Caption translation"],
+  ["shot_ranking", "vision", false, "AI shot picking"], ["studio_director", "text", false, "AI director"], ["song_understanding", "text", false, "Hearing the song (Gemini)"], ["studio_translate", "text", false, "Caption translation"],
   ["clip_understanding", "vision", false, "Trend video analysis"], ["support_chat", "text", false, "Help chat (support)"], ["test", "text", true, "Connection test"], ["general", "text", true, "Other"],
 ] as const).map(([id, kind, essential, label]) => [id, { id, kind, essential, label }]));
 export const getTask = (task: string | null | undefined) => TASKS[task || "general"] ?? TASKS.general;
